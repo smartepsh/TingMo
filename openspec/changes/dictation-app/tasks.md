@@ -7,12 +7,12 @@
 
 ## 2. Audio Device Management
 
-- [ ] 2.1 Implement audio input device enumeration via CoreAudio
-- [ ] 2.2 Implement device UID persistence (store UID + display name for historical devices)
-- [ ] 2.3 Implement device priority list ordering with drag-to-reorder (local per machine, not synced)
-- [ ] 2.4 Implement device online/offline status monitoring via CoreAudio property listeners
-- [ ] 2.5 Implement device disconnection handling during recording (stop recording, notify user, send captured audio to transcription)
-- [ ] 2.6 Build device management UI (list with online/offline indicators, reorder, remove historical devices)
+- [x] 2.1 Implement audio input device enumeration via CoreAudio
+- [x] 2.2 Implement device UID persistence (store UID + display name for historical devices)
+- [x] 2.3 Implement device priority list ordering with drag-to-reorder (local per machine, not synced)
+- [x] 2.4 Implement device online/offline status monitoring via CoreAudio property listeners
+- [x] 2.5 Implement device disconnection handling during recording (stop recording, notify user, send captured audio to transcription)
+- [x] 2.6 Build device management UI (list with online/offline indicators, reorder, remove historical devices)
 
 ## 3. Config Preset
 
@@ -37,33 +37,33 @@
 
 ## 5. Speech Engine Architecture
 
-- [ ] 5.1 Define unified SpeechEngine protocol (start, stop, streaming support flag, language support, etc.)
-- [ ] 5.2 Implement engine registry / model list manager (browse, download, switch engines)
-- [ ] 5.3 Implement audio capture service (shared across all engines, using device selected by Config Preset via audio-device module)
-- [ ] 5.4 Implement audio format adaptation layer (convert capture format to engine-required format, e.g., 16kHz mono for WhisperKit)
-- [ ] 5.5 Integrate WhisperKit as local engine (model download, Core ML acceleration, streaming support)
-- [ ] 5.6 Implement custom model download source configuration (WhisperKit `downloadBase` parameter)
-- [ ] 5.7 Implement local model import — file picker / drag-and-drop, validate `.mlmodelc` files, copy to `~/Library/Application Support/TingMo/Models/`
-- [ ] 5.8 Integrate Apple Speech Framework as local engine (zero-download, real-time streaming)
-- [ ] 5.9 Integrate Parakeet model support via CoreML (English-only, marked in model list)
-- [ ] 5.10 Implement remote engine adapter (Groq, ElevenLabs — record audio file, send to API, return result)
-- [ ] 5.11 Implement network failure handling for remote engines (retain audio file, notify user, allow retry)
-- [ ] 5.12 Add multi-language support with engine-language compatibility checking
+- [x] 5.1 Define unified SpeechEngine protocol (start, stop, streaming support flag, language support, etc.)
+- [x] 5.2 Implement engine registry / model list manager (browse, download, switch engines)
+- [x] 5.3 Implement audio capture service (shared across all engines, using device selected by Config Preset via audio-device module)
+- [x] 5.4 Implement audio format adaptation layer (convert capture format to engine-required format, e.g., 16kHz mono for WhisperKit)
+- [ ] 5.5 Integrate WhisperKit as local engine (model download, Core ML acceleration, streaming support) — structural shell done, needs SPM dep + real transcription
+- [ ] 5.6 Implement custom model download source configuration (WhisperKit `downloadBase` parameter) — config storage done, needs download implementation
+- [ ] 5.7 Implement local model import — file picker / drag-and-drop, validate `.mlmodelc` files, copy to `~/Library/Application Support/TingMo/Models/` — validation/copy done, needs UI
+- [x] 5.8 Integrate Apple Speech Framework as local engine (zero-download, real-time streaming)
+- [ ] 5.9 Integrate Parakeet model support via CoreML (English-only, marked in model list) — placeholder only, awaiting Argmax SDK
+- [x] 5.10 Implement remote engine adapter (Groq, ElevenLabs — record audio file, send to API, return result)
+- [x] 5.11 Implement network failure handling for remote engines (retain audio file, notify user, allow retry)
+- [x] 5.12 Add multi-language support with engine-language compatibility checking
 
 ## 6. Permission Handling
 
-- [ ] 6.1 Create PermissionManager to check and request microphone, speech recognition, accessibility, and screen recording permissions
-- [ ] 6.2 Implement permission status UI that guides user to System Settings when permissions are denied
+- [x] 6.1 Create PermissionManager to check and request microphone, speech recognition, accessibility, and screen recording permissions
+- [x] 6.2 Implement permission status UI that guides user to System Settings when permissions are denied
 
 ## 7. Global Hotkey & External Invocation
 
-- [ ] 7.1 Implement global hotkey listener using CGEvent tap (default: Option+D)
-- [ ] 7.2 Implement dual-mode hotkey: key-down starts recording immediately; short press (< 300ms) = toggle mode, long press (≥ 300ms release) = press-to-record mode
-- [ ] 7.3 Implement cancel recording via ESC (default) during toggle mode — discard audio, return to idle; ESC only intercepted globally while recording is active
-- [ ] 7.4 Add custom hotkey configuration with persistence via UserDefaults
-- [ ] 7.5 Implement application exclusion list (ignore hotkey in specified apps, pass event through)
-- [ ] 7.6 Implement CLI interface (tingmo start / stop / toggle)
-- [ ] 7.7 Implement AppleScript support for dictation actions
+- [x] 7.1 Implement global hotkey listener using CGEvent tap (default: Option+D)
+- [x] 7.2 Implement dual-mode hotkey: key-down starts recording immediately; short press (< 300ms) = toggle mode, long press (≥ 300ms release) = press-to-record mode
+- [x] 7.3 Implement cancel recording via ESC (default) during toggle mode — discard audio, return to idle; ESC only intercepted globally while recording is active
+- [x] 7.4 Add custom hotkey configuration with persistence via UserDefaults
+- [x] 7.5 Implement application exclusion list (ignore hotkey in specified apps, pass event through)
+- [x] 7.6 Implement CLI interface (tingmo start / stop / toggle)
+- [x] 7.7 Implement AppleScript support for dictation actions
 
 ## 8. Context Awareness
 
@@ -104,19 +104,19 @@
 
 ## 12. Status Indicator UI
 
-- [ ] 12.1 Implement Notch mode — embed waveform animation in camera notch area, with optional preview text
-- [ ] 12.2 Implement top-center mode — waveform animation at top center of active screen (fallback for no-notch devices)
-- [ ] 12.3 Implement floating window mode — waveform animation + transcription preview text
-- [ ] 12.4 Implement waveform animation that responds to audio input levels
-- [ ] 12.5 Implement processing/waiting indicator for non-streaming engines
-- [ ] 12.6 Add display mode selection in settings with auto-fallback (Notch → top-center on no-notch devices)
-- [ ] 12.7 Multi-monitor support — status indicator follows the display with the currently focused window
+- [x] 12.1 Implement Notch mode — embed waveform animation in camera notch area, with optional preview text
+- [x] 12.2 Implement top-center mode — waveform animation at top center of active screen (fallback for no-notch devices)
+- [x] 12.3 Implement floating window mode — waveform animation + transcription preview text
+- [x] 12.4 Implement waveform animation that responds to audio input levels
+- [x] 12.5 Implement processing/waiting indicator for non-streaming engines
+- [x] 12.6 Add display mode selection in settings with auto-fallback (Notch → top-center on no-notch devices)
+- [x] 12.7 Multi-monitor support — status indicator follows the display with the currently focused window
 
 ## 13. Onboarding & Localization
 
-- [ ] 13.1 Implement first-launch onboarding wizard (microphone → Accessibility → screen recording → engine download → hotkey setup)
-- [ ] 13.2 Allow skipping onboarding, with access to same steps from settings
-- [ ] 13.3 Implement multi-language UI support (Chinese Simplified + English), following macOS system language
+- [x] 13.1 Implement first-launch onboarding wizard (microphone → Accessibility → screen recording → engine download → hotkey setup)
+- [x] 13.2 Allow skipping onboarding, with access to same steps from settings
+- [x] 13.3 Implement multi-language UI support (Chinese Simplified + English), following macOS system language
 
 ## 14. Menu Bar UI
 

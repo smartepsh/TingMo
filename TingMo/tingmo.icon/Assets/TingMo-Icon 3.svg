@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="brushTaper" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1D1D1F" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#1D1D1F" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Microphone head -->
+  <rect x="432" y="180" width="160" height="260" rx="80" ry="80"
+        fill="#1D1D1F" opacity="0.88"/>
+
+  <!-- Sound lines on mic head (white, semi-transparent) -->
+  <line x1="480" y1="260" x2="480" y2="340" stroke="white" stroke-opacity="0.35"
+        stroke-width="8" stroke-linecap="round"/>
+  <line x1="512" y1="240" x2="512" y2="360" stroke="white" stroke-opacity="0.35"
+        stroke-width="8" stroke-linecap="round"/>
+  <line x1="544" y1="255" x2="544" y2="345" stroke="white" stroke-opacity="0.35"
+        stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Mic cradle - tight -->
+  <path d="M 410 330 C 410 480, 440 520, 512 520 C 584 520, 614 480, 614 330"
+        fill="none" stroke="#1D1D1F" stroke-opacity="0.8"
+        stroke-width="30" stroke-linecap="round"/>
+
+  <!-- Mic stand -->
+  <line x1="512" y1="520" x2="512" y2="600"
+        stroke="#1D1D1F" stroke-opacity="0.85" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- Brush stroke sweeping right -->
+  <path d="
+    M 497 600
+    C 500 630, 500 650, 490 670
+    C 475 700, 440 720, 420 730
+    C 400 740, 430 750, 480 745
+    C 550 735, 640 710, 720 685
+    C 780 666, 830 650, 860 640
+    Q 880 633, 890 632
+    Q 895 631, 892 635
+    Q 880 642, 860 650
+    C 820 668, 760 688, 700 705
+    C 620 728, 540 748, 470 760
+    C 430 768, 400 768, 390 760
+    C 378 750, 385 735, 410 720
+    C 440 702, 470 680, 485 650
+    C 498 625, 502 610, 505 600
+    Z
+  " fill="url(#brushTaper)"/>
+
+  <!-- Ink splash dots -->
+  <circle cx="898" cy="630" r="5" fill="#1D1D1F" opacity="0.3"/>
+  <circle cx="910" cy="634" r="3" fill="#1D1D1F" opacity="0.18"/>
+</svg>
