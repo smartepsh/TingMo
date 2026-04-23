@@ -34,8 +34,9 @@ final class DictationPipeline {
     /// Last error surfaced by the pipeline, cleared on next start.
     var lastError: Error?
 
-    /// Language tag passed to the engine (BCP-47-ish; Whisper accepts ISO codes).
-    var language: String = "zh"
+    /// Language tag passed to the engine (ISO code). Empty string means
+    /// let the engine auto-detect — M1 default until config presets exist.
+    var language: String = ""
 
     private let registry: EngineRegistry
     private let capture = AudioCapture()
@@ -110,33 +111,44 @@ final class DictationPipeline {
     private func runTranscription(audioURL: URL) async {
         defer { try? FileManager.default.removeItem(at: audioURL) }
 
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? Int) ?? 0
+        NSLog("[TingMo] transcription start: audioURL=\(audioURL.lastPathComponent) size=\(fileSize)B")
+
         guard let engine = registry.activeEngine else {
+            NSLog("[TingMo] no active engine")
             await finish(error: PipelineError.notReady(reason: "No active engine."))
             return
         }
 
         do {
-            // Make sure WhisperKit is loaded into memory before calling transcribe.
             if let whisper = engine as? WhisperKitEngine {
+                NSLog("[TingMo] loading WhisperKit model…")
                 try await whisper.loadModel()
+                NSLog("[TingMo] WhisperKit loaded")
             }
 
+            NSLog("[TingMo] calling engine.transcribe lang=\(language)")
             let stream = try await engine.transcribe(audioURL: audioURL, language: language)
 
             var collected = ""
             for await result in stream {
                 switch result {
-                case .partial(let s): collected = s
-                case .final(let s): collected = s
+                case .partial(let s): collected = s; NSLog("[TingMo] partial: \(s)")
+                case .final(let s): collected = s; NSLog("[TingMo] final: \(s)")
                 }
             }
 
             let trimmed = collected.trimmingCharacters(in: .whitespacesAndNewlines)
+            NSLog("[TingMo] transcription done; chars=\(trimmed.count); text=\(trimmed)")
             if !trimmed.isEmpty {
                 try await TextInjector.shared.inject(trimmed)
+                NSLog("[TingMo] inject OK")
+            } else {
+                NSLog("[TingMo] empty transcription; nothing to inject")
             }
             await finish(error: nil)
         } catch {
+            NSLog("[TingMo] transcription error: \(error)")
             await finish(error: error)
         }
     }

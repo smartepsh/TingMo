@@ -148,7 +148,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
     func transcribe(audioURL: URL, language: String) async throws -> AsyncStream<TranscriptionResult> {
         guard info.isReady else { throw SpeechEngineError.modelNotDownloaded }
-        guard supportsLanguage(language) else { throw SpeechEngineError.unsupportedLanguage(language) }
+        // Empty language means auto-detect; otherwise the engine must support it.
+        if !language.isEmpty, !supportsLanguage(language) {
+            throw SpeechEngineError.unsupportedLanguage(language)
+        }
 
         loadLock.lock()
         let kit = whisperKit
@@ -157,7 +160,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
         let options = DecodingOptions(
             task: .transcribe,
-            language: language,
+            language: language.isEmpty ? nil : language,
             temperature: 0.0,
             wordTimestamps: false,
             suppressBlank: true,
@@ -184,7 +187,9 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
     func startStreaming(language: String) async throws -> (stream: AsyncStream<TranscriptionResult>, stop: @Sendable () -> Void) {
         guard info.isReady else { throw SpeechEngineError.modelNotDownloaded }
-        guard supportsLanguage(language) else { throw SpeechEngineError.unsupportedLanguage(language) }
+        if !language.isEmpty, !supportsLanguage(language) {
+            throw SpeechEngineError.unsupportedLanguage(language)
+        }
 
         loadLock.lock()
         let kit = whisperKit
@@ -200,7 +205,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
         let options = DecodingOptions(
             task: .transcribe,
-            language: language,
+            language: language.isEmpty ? nil : language,
             temperature: 0.0,
             wordTimestamps: false,
             suppressBlank: true

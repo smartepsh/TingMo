@@ -377,6 +377,7 @@
       }
     },
     "Required for transcribing speech to text" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -477,6 +478,7 @@
       }
     },
     "Speech Recognition" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -545,6 +547,9 @@
           }
         }
       }
+    },
+    "Transcribing…" : {
+
     },
     "Welcome to TingMo" : {
       "localizations" : {
