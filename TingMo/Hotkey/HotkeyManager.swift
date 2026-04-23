@@ -208,13 +208,10 @@ final class HotkeyManager {
         guard keyDownTime == nil else { return } // ignore repeats
         keyDownTime = Date()
 
-        if isToggleRecording {
-            // Second press in toggle mode — stop
-            isToggleRecording = false
-            keyDownTime = nil
-            eventPublisher.send(.stopRecording(mode: .toggle))
-        } else {
-            // Start recording immediately
+        if !isToggleRecording {
+            // First press — start recording immediately.
+            // For the second press in toggle mode, defer the decision to keyUp
+            // so that both short and long second-presses stop cleanly.
             eventPublisher.send(.startRecording)
         }
     }
@@ -224,12 +221,15 @@ final class HotkeyManager {
         let duration = Date().timeIntervalSince(downTime)
         keyDownTime = nil
 
-        if duration < shortPressThreshold {
-            // Short press → toggle mode (recording already started)
+        if isToggleRecording {
+            // Release of the second press — stop toggle recording regardless of duration.
+            isToggleRecording = false
+            eventPublisher.send(.stopRecording(mode: .toggle))
+        } else if duration < shortPressThreshold {
+            // First press was short → enter toggle mode (recording already started).
             isToggleRecording = true
         } else {
-            // Long press → press-to-record, stop on release
-            isToggleRecording = false
+            // First press was long → press-to-record, stop on release.
             eventPublisher.send(.stopRecording(mode: .pressToRecord))
         }
     }
