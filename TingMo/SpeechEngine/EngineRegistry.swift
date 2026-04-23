@@ -29,6 +29,7 @@ final class EngineRegistry {
         let defaultID = WhisperKitEngine.defaultModelEngineID
         activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
+        preloadActiveEngine()
     }
 
     // MARK: - Registration
@@ -52,6 +53,21 @@ final class EngineRegistry {
     func setActiveEngine(_ engineID: String) {
         guard engines.contains(where: { $0.info.id == engineID }) else { return }
         activeEngineID = engineID
+        preloadActiveEngine()
+    }
+
+    /// Kick off a background `loadModel()` for the active engine so the
+    /// first recording after a model switch doesn't pay the CoreML
+    /// compile/load tax synchronously. No-op if already loaded.
+    func preloadActiveEngine() {
+        guard let whisper = activeEngine as? WhisperKitEngine else { return }
+        guard whisper.info.isReady else { return }
+        Task.detached {
+            NSLog("[TingMo] preloading engine \(whisper.info.id)…")
+            let t = Date()
+            try? await whisper.loadModel()
+            NSLog("[TingMo] preloaded \(whisper.info.id) in \(Int(Date().timeIntervalSince(t) * 1000))ms")
+        }
     }
 
     // MARK: - Language Compatibility

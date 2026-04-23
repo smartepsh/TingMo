@@ -54,6 +54,9 @@
         }
       }
     },
+    "Download" : {
+
+    },
     "Embed in the camera notch area" : {
       "localizations" : {
         "zh-Hans" : {
@@ -154,10 +157,10 @@
         }
       }
     },
-    "Input: %@" : {
+    "Idle" : {
 
     },
-    "Input: System Default" : {
+    "Input: %@" : {
 
     },
     "Microphone" : {
@@ -362,6 +365,9 @@
         }
       }
     },
+    "Recording…" : {
+
+    },
     "Remove historical device" : {
       "localizations" : {
         "zh-Hans" : {
@@ -483,6 +489,9 @@
         }
       }
     },
+    "Speech Model" : {
+
+    },
     "Speech Recognition" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -523,6 +532,9 @@
           }
         }
       }
+    },
+    "System Default" : {
+
     },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {

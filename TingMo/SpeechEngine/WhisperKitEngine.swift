@@ -130,7 +130,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
                 modelFolder: Self.modelFolder(for: model).path,
                 verbose: false,
                 logLevel: .error,
-                prewarm: true,
+                prewarm: false,
                 load: true,
                 download: false
             )
