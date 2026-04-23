@@ -98,6 +98,16 @@ struct TingMoApp: App {
 
             Divider()
 
+            Menu(String(localized: "Speech Model")) {
+                ForEach(WhisperKitEngine.availableModels) { model in
+                    let engineID = "\(WhisperKitEngine.engineID)-\(model.id)"
+                    modelMenuButton(engineID: engineID, model: model)
+                }
+            }
+            .disabled(pipeline.state != .idle)
+
+            Divider()
+
             Button(String(localized: "Settings...")) {
                 openWindow(id: "settings-window")
             }
@@ -185,6 +195,33 @@ struct TingMoApp: App {
                     }
                 }
             }
+    }
+
+    // MARK: - Model menu
+
+    @ViewBuilder
+    private func modelMenuButton(engineID: String, model: WhisperKitEngine.WhisperModel) -> some View {
+        let isActive = engineRegistry.activeEngineID == engineID
+        let downloaded = WhisperKitEngine.isModelDownloaded(model)
+        let progress = engineRegistry.progress(for: engineID)
+
+        let title: String = {
+            if let p = progress {
+                return "\(model.name) — \(Int(p * 100))%"
+            }
+            if isActive { return "✓ \(model.name) (\(model.size))" }
+            if downloaded { return "\(model.name) (\(model.size))" }
+            return "\(model.name) (\(model.size)) — \(String(localized: "Download"))"
+        }()
+
+        Button(title) {
+            if downloaded {
+                engineRegistry.setActiveEngine(engineID)
+            } else {
+                engineRegistry.downloadModel(engineID: engineID)
+            }
+        }
+        .disabled(progress != nil || isActive)
     }
 
     // MARK: - Model prefetch (M1 hotest convenience)

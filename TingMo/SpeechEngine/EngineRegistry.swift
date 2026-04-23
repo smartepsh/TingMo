@@ -63,4 +63,52 @@ final class EngineRegistry {
     func isActiveEngineCompatible(with language: String) -> Bool {
         activeEngine?.supportsLanguage(language) ?? false
     }
+
+    // MARK: - Downloads
+
+    /// Kick off a download for the given engine ID. When it finishes, if no
+    /// other model is currently active-and-ready, the newly downloaded model
+    /// becomes active. Safe to call twice — returns immediately if already
+    /// downloading.
+    @MainActor
+    func downloadModel(engineID: String, makeActiveWhenDone: Bool = true) {
+        guard let engine = engines.first(where: { $0.info.id == engineID }) else { return }
+        guard let whisper = engine as? WhisperKitEngine else { return }
+        guard downloadProgress[engineID] == nil else { return }
+        if whisper.info.isReady { return }
+
+        downloadProgress[engineID] = 0
+
+        Task { [weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.downloadProgress[engineID] = nil
+                }
+            }
+            do {
+                try await whisper.downloadModel { fraction in
+                    Task { @MainActor [weak self] in
+                        self?.downloadProgress[engineID] = fraction
+                    }
+                }
+                if makeActiveWhenDone {
+                    await MainActor.run { [weak self] in
+                        self?.setActiveEngine(engineID)
+                    }
+                }
+            } catch {
+                NSLog("[TingMo] model download failed for \(engineID): \(error)")
+            }
+        }
+    }
+
+    /// True if the given engine has an active download.
+    func isDownloading(_ engineID: String) -> Bool {
+        downloadProgress[engineID] != nil
+    }
+
+    /// Progress for the given engine (0.0–1.0) if downloading, else nil.
+    func progress(for engineID: String) -> Double? {
+        downloadProgress[engineID]
+    }
 }
