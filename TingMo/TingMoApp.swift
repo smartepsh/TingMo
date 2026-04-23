@@ -63,6 +63,16 @@ struct TingMoApp: App {
                     .foregroundStyle(.secondary)
             }
 
+            if let device = audioDeviceManager.firstOnlineDevice() {
+                Text(String(localized: "Input: \(device.name)"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(String(localized: "Input: System Default"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let err = pipeline.lastError {
                 Text(err.localizedDescription)
                     .foregroundStyle(.red)
@@ -89,6 +99,14 @@ struct TingMoApp: App {
                     subscribeToHotkeyEvents()
                     prefetchDefaultModelIfNeeded()
                 }
+                .onChange(of: audioDeviceManager.deviceDisconnectedDuringRecording) { _, disconnected in
+                    guard disconnected else { return }
+                    audioDeviceManager.deviceDisconnectedDuringRecording = false
+                    if pipeline.state == .recording {
+                        pipeline.cancel()
+                        statusIndicatorManager.hide()
+                    }
+                }
         }
 
         Window(String(localized: "Settings"), id: "settings-window") {
@@ -112,10 +130,13 @@ struct TingMoApp: App {
     private func toggleRecording() {
         if pipeline.state == .recording {
             pipeline.stopAndTranscribe()
+            audioDeviceManager.isRecording = false
             statusIndicatorManager.hide()
         } else if pipeline.state == .idle {
+            let preferredUID = audioDeviceManager.firstOnlineDevice()?.uid
             do {
-                try pipeline.start()
+                try pipeline.start(preferredDeviceUID: preferredUID)
+                audioDeviceManager.isRecording = true
                 statusIndicatorManager.audioLevel = 0.3
                 statusIndicatorManager.show()
             } catch {
@@ -141,6 +162,7 @@ struct TingMoApp: App {
                 case .cancelRecording:
                     if pipeline.state == .recording {
                         pipeline.cancel()
+                        audioDeviceManager.isRecording = false
                         statusIndicatorManager.hide()
                     }
                 }

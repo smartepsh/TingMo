@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import Foundation
 
 /// Captures microphone audio to a temporary WAV file in the format
@@ -35,12 +36,32 @@ final class AudioCapture {
 
     /// Last-known audio level 0.0–1.0 (peak of recent buffer). Observable via polling.
     private(set) var audioLevel: Float = 0.0
+    /// Running max peak across the whole capture session, for diagnostics.
+    private(set) var sessionPeak: Float = 0.0
+    private var totalFrames: Int = 0
 
-    func start() throws {
+    /// Start capture, optionally binding a specific input device by UID.
+    /// When `preferredDeviceUID` is nil or unresolvable, the system default
+    /// input is used.
+    func start(preferredDeviceUID: String? = nil) throws {
         guard !isRunning else { throw CaptureError.alreadyRunning }
+        sessionPeak = 0
+        totalFrames = 0
 
         let input = engine.inputNode
+
+        if let uid = preferredDeviceUID,
+           let deviceID = AudioDeviceEnumerator.deviceID(forUID: uid) {
+            do {
+                try Self.setInputDevice(on: input, deviceID: deviceID)
+                NSLog("[TingMo] AudioCapture bound inputNode to device uid=\(uid) id=\(deviceID)")
+            } catch {
+                NSLog("[TingMo] AudioCapture failed to bind device uid=\(uid): \(error); falling back to system default")
+            }
+        }
+
         let inputFormat = input.outputFormat(forBus: 0)
+        NSLog("[TingMo] AudioCapture start: input format sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount) fmt=\(inputFormat.commonFormat.rawValue)")
 
         // Whisper wants 16 kHz mono Float32.
         guard let wantFormat = AVAudioFormat(
@@ -83,8 +104,11 @@ final class AudioCapture {
             self?.handleBuffer(buffer)
         }
 
+        engine.prepare()
+
         do {
             try engine.start()
+            NSLog("[TingMo] AudioCapture engine started; running=\(engine.isRunning)")
         } catch {
             input.removeTap(onBus: 0)
             file = nil
@@ -102,6 +126,7 @@ final class AudioCapture {
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
         isRunning = false
+        NSLog("[TingMo] AudioCapture stop: sessionPeak=\(sessionPeak) totalFrames=\(totalFrames)")
 
         let url = fileURL
         file = nil
@@ -174,5 +199,30 @@ final class AudioCapture {
             if v > peak { peak = v }
         }
         audioLevel = min(peak, 1.0)
+        if peak > sessionPeak { sessionPeak = peak }
+        totalFrames += frameLength
+    }
+
+    // MARK: - Device binding
+
+    /// Bind the input node's underlying HAL audio unit to a specific device.
+    /// Must be called before `engine.start()`.
+    private static func setInputDevice(on input: AVAudioInputNode, deviceID: AudioDeviceID) throws {
+        var id = deviceID
+        let unit = input.audioUnit
+        guard let unit else {
+            throw CaptureError.engineFailure(underlying: NSError(domain: "AudioCapture", code: -2))
+        }
+        let status = AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &id,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        guard status == noErr else {
+            throw CaptureError.engineFailure(underlying: NSError(domain: NSOSStatusErrorDomain, code: Int(status)))
+        }
     }
 }

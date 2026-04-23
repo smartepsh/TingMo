@@ -34,9 +34,10 @@ final class DictationPipeline {
     /// Last error surfaced by the pipeline, cleared on next start.
     var lastError: Error?
 
-    /// Language tag passed to the engine (ISO code). Empty string means
-    /// let the engine auto-detect — M1 default until config presets exist.
-    var language: String = ""
+    /// Language tag passed to the engine (ISO code). M1 defaults to Chinese
+    /// since tiny's language auto-detect is unreliable; real per-preset
+    /// language configuration arrives with M3.
+    var language: String = "zh"
 
     private let registry: EngineRegistry
     private let capture = AudioCapture()
@@ -46,7 +47,9 @@ final class DictationPipeline {
     }
 
     /// Begin capturing audio. Fast — engine load/download is NOT done here.
-    func start() throws {
+    /// - Parameter preferredDeviceUID: Optional input device UID. When nil,
+    ///   the system default input is used.
+    func start(preferredDeviceUID: String? = nil) throws {
         guard state == .idle else { throw PipelineError.alreadyRunning }
 
         guard let engine = registry.activeEngine else {
@@ -59,7 +62,7 @@ final class DictationPipeline {
         lastError = nil
 
         do {
-            try capture.start()
+            try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording
         } catch {
             lastError = error
