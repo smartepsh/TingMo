@@ -1,6 +1,5 @@
 import AVFoundation
 import Observation
-import Speech
 import SwiftUI
 
 enum PermissionStatus: String {
@@ -12,7 +11,6 @@ enum PermissionStatus: String {
 
 enum PermissionType: String, CaseIterable, Identifiable {
     case microphone
-    case speechRecognition
     case accessibility
     case screenRecording
 
@@ -21,7 +19,6 @@ enum PermissionType: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .microphone: String(localized: "Microphone")
-        case .speechRecognition: String(localized: "Speech Recognition")
         case .accessibility: String(localized: "Accessibility")
         case .screenRecording: String(localized: "Screen Recording")
         }
@@ -31,8 +28,6 @@ enum PermissionType: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             String(localized: "Required for voice input")
-        case .speechRecognition:
-            String(localized: "Required for transcribing speech to text")
         case .accessibility:
             String(localized: "Required for reading screen context and text injection")
         case .screenRecording:
@@ -43,7 +38,6 @@ enum PermissionType: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .microphone: "mic.fill"
-        case .speechRecognition: "waveform"
         case .accessibility: "accessibility"
         case .screenRecording: "rectangle.on.rectangle"
         }
@@ -51,7 +45,7 @@ enum PermissionType: String, CaseIterable, Identifiable {
 
     var isRequired: Bool {
         switch self {
-        case .microphone, .speechRecognition, .accessibility: true
+        case .microphone, .accessibility: true
         case .screenRecording: false
         }
     }
@@ -60,8 +54,6 @@ enum PermissionType: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-        case .speechRecognition:
-            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition")
         case .accessibility:
             URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         case .screenRecording:
@@ -73,7 +65,6 @@ enum PermissionType: String, CaseIterable, Identifiable {
 @Observable
 final class PermissionManager {
     var microphoneStatus: PermissionStatus = .notDetermined
-    var speechRecognitionStatus: PermissionStatus = .notDetermined
     var accessibilityStatus: PermissionStatus = .denied
     var screenRecordingStatus: PermissionStatus = .denied
 
@@ -81,7 +72,6 @@ final class PermissionManager {
 
     var allRequiredGranted: Bool {
         microphoneStatus == .granted
-            && speechRecognitionStatus == .granted
             && accessibilityStatus == .granted
     }
 
@@ -106,7 +96,6 @@ final class PermissionManager {
     func status(for type: PermissionType) -> PermissionStatus {
         switch type {
         case .microphone: microphoneStatus
-        case .speechRecognition: speechRecognitionStatus
         case .accessibility: accessibilityStatus
         case .screenRecording: screenRecordingStatus
         }
@@ -114,7 +103,6 @@ final class PermissionManager {
 
     func refreshAll() {
         refreshMicrophone()
-        refreshSpeechRecognition()
         refreshAccessibility()
         refreshScreenRecording()
     }
@@ -134,33 +122,6 @@ final class PermissionManager {
     func requestMicrophone() async {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         microphoneStatus = granted ? .granted : .denied
-    }
-
-    // MARK: - Speech Recognition
-
-    private func refreshSpeechRecognition() {
-        switch SFSpeechRecognizer.authorizationStatus() {
-        case .authorized: speechRecognitionStatus = .granted
-        case .denied: speechRecognitionStatus = .denied
-        case .restricted: speechRecognitionStatus = .restricted
-        case .notDetermined: speechRecognitionStatus = .notDetermined
-        @unknown default: speechRecognitionStatus = .notDetermined
-        }
-    }
-
-    func requestSpeechRecognition() async {
-        let status = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
-            }
-        }
-        switch status {
-        case .authorized: speechRecognitionStatus = .granted
-        case .denied: speechRecognitionStatus = .denied
-        case .restricted: speechRecognitionStatus = .restricted
-        case .notDetermined: speechRecognitionStatus = .notDetermined
-        @unknown default: speechRecognitionStatus = .notDetermined
-        }
     }
 
     // MARK: - Accessibility
@@ -199,8 +160,6 @@ final class PermissionManager {
         switch type {
         case .microphone:
             await requestMicrophone()
-        case .speechRecognition:
-            await requestSpeechRecognition()
         case .accessibility:
             requestAccessibility()
         case .screenRecording:
@@ -211,7 +170,7 @@ final class PermissionManager {
     func canRequest(for type: PermissionType) -> Bool {
         let s = status(for: type)
         switch type {
-        case .microphone, .speechRecognition:
+        case .microphone:
             return s == .notDetermined
         case .accessibility, .screenRecording:
             return s == .denied

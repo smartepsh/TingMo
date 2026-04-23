@@ -3,7 +3,6 @@ import Foundation
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
     case microphone
-    case speechRecognition
     case accessibility
     case screenRecording
     case engineDownload
@@ -15,7 +14,6 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var permissionType: PermissionType? {
         switch self {
         case .microphone: .microphone
-        case .speechRecognition: .speechRecognition
         case .accessibility: .accessibility
         case .screenRecording: .screenRecording
         default: nil

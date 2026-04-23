@@ -274,7 +274,6 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TingMo needs microphone access to capture your voice for dictation.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TingMo uses speech recognition to transcribe your voice input.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -308,7 +307,6 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TingMo needs microphone access to capture your voice for dictation.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TingMo uses speech recognition to transcribe your voice input.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

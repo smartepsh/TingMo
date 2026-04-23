@@ -18,6 +18,9 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         WhisperModel(id: "large-v3", name: "Whisper Large v3", size: "3.1 GB"),
     ]
 
+    /// Default engine ID used when the user has no saved preference (M1 ships with tiny).
+    static let defaultModelEngineID = "\(engineID)-tiny"
+
     struct WhisperModel: Identifiable, Sendable {
         let id: String
         let name: String

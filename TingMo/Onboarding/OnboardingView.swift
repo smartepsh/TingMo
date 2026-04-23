@@ -38,7 +38,7 @@ struct OnboardingView: View {
                 switch currentStep {
                 case .welcome:
                     WelcomeStepView()
-                case .microphone, .speechRecognition, .accessibility, .screenRecording:
+                case .microphone, .accessibility, .screenRecording:
                     if let type = currentStep.permissionType {
                         PermissionStepView(type: type, permissionManager: permissionManager)
                     }

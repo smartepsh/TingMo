@@ -26,7 +26,8 @@ final class EngineRegistry {
     }
 
     init() {
-        activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? AppleSpeechEngine.engineID
+        let defaultID = WhisperKitEngine.defaultModelEngineID
+        activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
     }
 
@@ -37,9 +38,6 @@ final class EngineRegistry {
     }
 
     private func registerBuiltInEngines() {
-        // Apple Speech — always available, no download needed
-        register(AppleSpeechEngine())
-
         // WhisperKit models — registered with download status
         for model in WhisperKitEngine.availableModels {
             let isDownloaded = WhisperKitEngine.isModelDownloaded(model)
