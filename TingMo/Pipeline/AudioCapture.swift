@@ -1,0 +1,178 @@
+import AVFoundation
+import Foundation
+
+/// Captures microphone audio to a temporary WAV file in the format
+/// WhisperKit expects: 16 kHz mono Float32 PCM.
+///
+/// Usage:
+///   let capture = AudioCapture()
+///   try capture.start()
+///   ...
+///   let url = try capture.stop()  // WAV on disk, ready to transcribe
+final class AudioCapture {
+    enum CaptureError: Error, LocalizedError {
+        case alreadyRunning
+        case notRunning
+        case engineFailure(underlying: Error)
+        case writerFailure(underlying: Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .alreadyRunning: "Audio capture is already running."
+            case .notRunning: "Audio capture is not running."
+            case .engineFailure(let e): "Audio engine error: \(e.localizedDescription)"
+            case .writerFailure(let e): "Audio file writer error: \(e.localizedDescription)"
+            }
+        }
+    }
+
+    private let engine = AVAudioEngine()
+    private var file: AVAudioFile?
+    private var fileURL: URL?
+    private var converter: AVAudioConverter?
+    private var targetFormat: AVAudioFormat?
+    private var isRunning = false
+
+    /// Last-known audio level 0.0–1.0 (peak of recent buffer). Observable via polling.
+    private(set) var audioLevel: Float = 0.0
+
+    func start() throws {
+        guard !isRunning else { throw CaptureError.alreadyRunning }
+
+        let input = engine.inputNode
+        let inputFormat = input.outputFormat(forBus: 0)
+
+        // Whisper wants 16 kHz mono Float32.
+        guard let wantFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        ) else {
+            throw CaptureError.engineFailure(underlying: NSError(domain: "AudioCapture", code: -1))
+        }
+        targetFormat = wantFormat
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tingmo-\(UUID().uuidString).wav")
+        fileURL = url
+
+        do {
+            // AVAudioFile written in Whisper's target format directly.
+            let settings: [String: Any] = [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16_000,
+                AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 32,
+                AVLinearPCMIsFloatKey: true,
+                AVLinearPCMIsNonInterleaved: false,
+                AVLinearPCMIsBigEndianKey: false,
+            ]
+            file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+        } catch {
+            throw CaptureError.writerFailure(underlying: error)
+        }
+
+        if inputFormat.sampleRate != wantFormat.sampleRate || inputFormat.channelCount != wantFormat.channelCount {
+            converter = AVAudioConverter(from: inputFormat, to: wantFormat)
+        } else {
+            converter = nil
+        }
+
+        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
+            self?.handleBuffer(buffer)
+        }
+
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            file = nil
+            try? FileManager.default.removeItem(at: url)
+            throw CaptureError.engineFailure(underlying: error)
+        }
+
+        isRunning = true
+    }
+
+    /// Stop capture and return the written WAV URL.
+    @discardableResult
+    func stop() throws -> URL {
+        guard isRunning else { throw CaptureError.notRunning }
+        engine.stop()
+        engine.inputNode.removeTap(onBus: 0)
+        isRunning = false
+
+        let url = fileURL
+        file = nil
+        fileURL = nil
+        converter = nil
+        targetFormat = nil
+        audioLevel = 0.0
+
+        guard let url else { throw CaptureError.notRunning }
+        return url
+    }
+
+    /// Cancel capture and delete the partial file.
+    func cancel() {
+        if isRunning {
+            engine.stop()
+            engine.inputNode.removeTap(onBus: 0)
+            isRunning = false
+        }
+        if let url = fileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        file = nil
+        fileURL = nil
+        converter = nil
+        targetFormat = nil
+        audioLevel = 0.0
+    }
+
+    // MARK: - Buffer handling
+
+    private func handleBuffer(_ buffer: AVAudioPCMBuffer) {
+        updateLevel(buffer)
+
+        guard let file else { return }
+
+        let output: AVAudioPCMBuffer
+        if let converter, let targetFormat {
+            let ratio = targetFormat.sampleRate / buffer.format.sampleRate
+            let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
+            guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
+            var error: NSError?
+            var supplied = false
+            let status = converter.convert(to: converted, error: &error) { _, inputStatus in
+                if supplied {
+                    inputStatus.pointee = .noDataNow
+                    return nil
+                }
+                supplied = true
+                inputStatus.pointee = .haveData
+                return buffer
+            }
+            if status == .error || converted.frameLength == 0 { return }
+            output = converted
+        } else {
+            output = buffer
+        }
+
+        try? file.write(from: output)
+    }
+
+    private func updateLevel(_ buffer: AVAudioPCMBuffer) {
+        guard let channelData = buffer.floatChannelData else { return }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return }
+        var peak: Float = 0
+        let samples = channelData[0]
+        for i in 0..<frameLength {
+            let v = abs(samples[i])
+            if v > peak { peak = v }
+        }
+        audioLevel = min(peak, 1.0)
+    }
+}

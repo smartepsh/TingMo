@@ -4,14 +4,15 @@ import SwiftUI
 @main
 struct TingMoApp: App {
     @Environment(\.openWindow) private var openWindow
-    @State private var isRecording = false
     @State private var permissionManager = PermissionManager()
     @State private var audioDeviceManager = AudioDeviceManager()
     @State private var hotkeyManager = HotkeyManager()
     @State private var engineRegistry = EngineRegistry()
     @State private var statusIndicatorManager = StatusIndicatorManager()
+    @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
+    @State private var didPrefetchModel = false
     @State private var hotkeyCancellable: AnyCancellable?
 
     private static let menuBarIcon: NSImage = {
@@ -29,10 +30,13 @@ struct TingMoApp: App {
     }()
 
     init() {
-        // Create a temporary reference to start the tap immediately.
-        // The @State hotkeyManager will be the actual instance used by SwiftUI.
-        // We rely on HotkeyManager.init() loading persisted settings,
-        // and start() being called once the @State is available.
+        let registry = EngineRegistry()
+        _engineRegistry = State(initialValue: registry)
+        _pipeline = State(initialValue: DictationPipeline(registry: registry))
+    }
+
+    private var isRecording: Bool {
+        pipeline.state != .idle
     }
 
     var body: some Scene {
@@ -54,6 +58,17 @@ struct TingMoApp: App {
             }
             .keyboardShortcut("r", modifiers: .command)
 
+            if pipeline.state == .transcribing {
+                Text(String(localized: "Transcribing…"))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let err = pipeline.lastError {
+                Text(err.localizedDescription)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
             Divider()
 
             Button(String(localized: "Settings...")) {
@@ -70,9 +85,9 @@ struct TingMoApp: App {
         } label: {
             Image(nsImage: isRecording ? Self.menuBarIconRecording : Self.menuBarIcon)
                 .onAppear {
-                    // The menu bar icon's onAppear fires at app launch, unlike menu content
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
+                    prefetchDefaultModelIfNeeded()
                 }
         }
 
@@ -92,13 +107,20 @@ struct TingMoApp: App {
         .defaultLaunchBehavior(.suppressed)
     }
 
+    // MARK: - Recording control
+
     private func toggleRecording() {
-        isRecording.toggle()
-        if isRecording {
-            statusIndicatorManager.audioLevel = 0.3
-            statusIndicatorManager.show()
-        } else {
+        if pipeline.state == .recording {
+            pipeline.stopAndTranscribe()
             statusIndicatorManager.hide()
+        } else if pipeline.state == .idle {
+            do {
+                try pipeline.start()
+                statusIndicatorManager.audioLevel = 0.3
+                statusIndicatorManager.show()
+            } catch {
+                // Error surfaced via pipeline.lastError + menu text.
+            }
         }
     }
 
@@ -109,19 +131,37 @@ struct TingMoApp: App {
             .sink { event in
                 switch event {
                 case .startRecording:
-                    if !isRecording {
+                    if pipeline.state == .idle {
                         toggleRecording()
                     }
                 case .stopRecording:
-                    if isRecording {
+                    if pipeline.state == .recording {
                         toggleRecording()
                     }
                 case .cancelRecording:
-                    if isRecording {
-                        isRecording = false
+                    if pipeline.state == .recording {
+                        pipeline.cancel()
                         statusIndicatorManager.hide()
                     }
                 }
             }
+    }
+
+    // MARK: - Model prefetch (M1 hotest convenience)
+
+    /// Kick off a background download of the default tiny model if it's not
+    /// on disk yet, so the first recording doesn't require manual setup.
+    /// Temporary until M1-5 adds a real download UI.
+    private func prefetchDefaultModelIfNeeded() {
+        guard !didPrefetchModel else { return }
+        didPrefetchModel = true
+
+        guard let whisper = engineRegistry.activeEngine as? WhisperKitEngine else { return }
+        if whisper.info.isReady { return }
+
+        Task.detached {
+            try? await whisper.downloadModel()
+            try? await whisper.loadModel()
+        }
     }
 }
