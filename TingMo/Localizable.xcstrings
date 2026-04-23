@@ -154,6 +154,12 @@
         }
       }
     },
+    "Input: %@" : {
+
+    },
+    "Input: System Default" : {
+
+    },
     "Microphone" : {
       "localizations" : {
         "zh-Hans" : {

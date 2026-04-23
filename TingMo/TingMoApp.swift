@@ -35,8 +35,27 @@ struct TingMoApp: App {
         _pipeline = State(initialValue: DictationPipeline(registry: registry))
     }
 
-    private var isRecording: Bool {
-        pipeline.state != .idle
+    /// Menu icon should only show the recording variant while actively
+    /// capturing audio; during transcribing we revert to idle so the user
+    /// doesn't think the mic is still live.
+    private var showRecordingIcon: Bool {
+        pipeline.state == .recording
+    }
+
+    private var statusText: String {
+        switch pipeline.state {
+        case .idle: String(localized: "Idle")
+        case .recording: String(localized: "Recording…")
+        case .transcribing: String(localized: "Transcribing…")
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        switch pipeline.state {
+        case .idle: String(localized: "Start Recording")
+        case .recording: String(localized: "Stop Recording")
+        case .transcribing: String(localized: "Transcribing…")
+        }
     }
 
     var body: some Scene {
@@ -53,31 +72,29 @@ struct TingMoApp: App {
 
             Divider()
 
-            Button(isRecording ? String(localized: "Stop Recording") : String(localized: "Start Recording")) {
-                toggleRecording()
-            }
-            .keyboardShortcut("r", modifiers: .command)
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            if pipeline.state == .transcribing {
-                Text(String(localized: "Transcribing…"))
-                    .foregroundStyle(.secondary)
-            }
-
-            if let device = audioDeviceManager.firstOnlineDevice() {
-                Text(String(localized: "Input: \(device.name)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(String(localized: "Input: System Default"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            let inputName = audioDeviceManager.firstOnlineDevice()?.name
+                ?? String(localized: "System Default")
+            Text(String(localized: "Input: \(inputName)"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if let err = pipeline.lastError {
                 Text(err.localizedDescription)
-                    .foregroundStyle(.red)
                     .font(.caption)
+                    .foregroundStyle(.red)
             }
+
+            Divider()
+
+            Button(primaryButtonTitle) {
+                toggleRecording()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(pipeline.state == .transcribing)
 
             Divider()
 
@@ -85,6 +102,7 @@ struct TingMoApp: App {
                 openWindow(id: "settings-window")
             }
             .keyboardShortcut(",", modifiers: .command)
+            .disabled(pipeline.state == .recording)
 
             Divider()
 
@@ -93,7 +111,7 @@ struct TingMoApp: App {
             }
             .keyboardShortcut("q")
         } label: {
-            Image(nsImage: isRecording ? Self.menuBarIconRecording : Self.menuBarIcon)
+            Image(nsImage: showRecordingIcon ? Self.menuBarIconRecording : Self.menuBarIcon)
                 .onAppear {
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
