@@ -7,7 +7,7 @@ struct TingMoApp: App {
     @State private var permissionManager = PermissionManager()
     @State private var audioDeviceManager = AudioDeviceManager()
     @State private var hotkeyManager = HotkeyManager()
-    @State private var engineRegistry = EngineRegistry()
+    @State private var engineRegistry: EngineRegistry
     @State private var statusIndicatorManager = StatusIndicatorManager()
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
