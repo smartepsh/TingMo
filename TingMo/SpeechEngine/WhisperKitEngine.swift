@@ -64,20 +64,22 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         return appSupport.appendingPathComponent("TingMo/Models", isDirectory: true)
     }
 
-    /// Directory for a specific model variant.
+    /// Directory where WhisperKit actually places a downloaded variant.
+    /// `WhisperKit.download(downloadBase:)` appends `models/<repo>/<variant>`.
     static func modelFolder(for model: WhisperModel) -> URL {
-        modelsDirectory.appendingPathComponent(model.variant, isDirectory: true)
+        modelsDirectory
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent("argmaxinc/whisperkit-coreml", isDirectory: true)
+            .appendingPathComponent(model.variant, isDirectory: true)
     }
 
-    /// A model is considered downloaded if its folder exists and is non-empty.
-    /// WhisperKit populates the folder with several .mlmodelc bundles and
-    /// tokenizer files; we leave detailed validation to WhisperKit's loader.
+    /// A model is considered downloaded if the .mlmodelc bundles are present.
     static func isModelDownloaded(_ model: WhisperModel) -> Bool {
         let folder = modelFolder(for: model)
-        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
-            return false
+        let required = ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"]
+        return required.allSatisfy {
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
         }
-        return !contents.isEmpty
     }
 
     // MARK: - Download & load
@@ -96,19 +98,12 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         )
 
         do {
-            let downloadedFolder = try await WhisperKit.download(
+            _ = try await WhisperKit.download(
                 variant: model.variant,
                 downloadBase: Self.modelsDirectory,
                 from: "argmaxinc/whisperkit-coreml"
             ) { p in
                 progress?(p.fractionCompleted)
-            }
-            // WhisperKit may return a subfolder path; if it differs from our
-            // expected location, symlink/rename so our isReady check works.
-            let expected = Self.modelFolder(for: model)
-            if downloadedFolder.standardizedFileURL != expected.standardizedFileURL,
-               !FileManager.default.fileExists(atPath: expected.path) {
-                try? FileManager.default.createSymbolicLink(at: expected, withDestinationURL: downloadedFolder)
             }
             info.isReady = true
         } catch {
