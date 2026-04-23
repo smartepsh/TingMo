@@ -1,6 +1,10 @@
 .DS_Store
 .claude/worktrees/
 
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+
 # Fiberplane local issue tracking
 .fp/*
 !.fp/config.toml

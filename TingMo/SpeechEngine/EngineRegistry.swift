@@ -38,10 +38,9 @@ final class EngineRegistry {
     }
 
     private func registerBuiltInEngines() {
-        // WhisperKit models — registered with download status
+        // WhisperKit models — isReady is derived from disk state in init.
         for model in WhisperKitEngine.availableModels {
-            let isDownloaded = WhisperKitEngine.isModelDownloaded(model)
-            register(WhisperKitEngine(model: model, isReady: isDownloaded))
+            register(WhisperKitEngine(model: model))
         }
 
         // Parakeet — English-only, CoreML

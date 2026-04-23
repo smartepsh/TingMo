@@ -58,7 +58,6 @@ enum SpeechEngineError: Error, LocalizedError {
     case streamingNotSupported
     case modelNotDownloaded
     case modelNotFound
-    case invalidModelFiles(missing: [String])
     case transcriptionFailed(underlying: Error)
     case networkError(underlying: Error)
     case permissionDenied
@@ -72,8 +71,6 @@ enum SpeechEngineError: Error, LocalizedError {
             "The speech model has not been downloaded yet."
         case .modelNotFound:
             "The speech model could not be found."
-        case .invalidModelFiles(let missing):
-            "Invalid model: missing files — \(missing.joined(separator: ", "))"
         case .transcriptionFailed(let error):
             "Transcription failed: \(error.localizedDescription)"
         case .networkError(let error):

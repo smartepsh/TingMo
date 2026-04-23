@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		76A0D9802F9A2839000B4EBB /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 76A0D97F2F9A2839000B4EBB /* WhisperKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		762D97BC2F683D3500FF0133 /* TingMo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TingMo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		76B3FC0F2F6BB0E300791B19 /* TingMo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TingMo.xcodeproj; sourceTree = "<group>"; };
@@ -24,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				76A0D9802F9A2839000B4EBB /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -34,6 +39,7 @@
 			isa = PBXGroup;
 			children = (
 				762D97BE2F683D3500FF0133 /* TingMo */,
+				76A0D97E2F9A2839000B4EBB /* Frameworks */,
 				762D97BD2F683D3500FF0133 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -44,6 +50,13 @@
 				762D97BC2F683D3500FF0133 /* TingMo.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		76A0D97E2F9A2839000B4EBB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		76B3FC112F6BB0E300791B19 /* Products */ = {
@@ -73,6 +86,7 @@
 			);
 			name = TingMo;
 			packageProductDependencies = (
+				76A0D97F2F9A2839000B4EBB /* WhisperKit */,
 			);
 			productName = TingMo;
 			productReference = 762D97BC2F683D3500FF0133 /* TingMo.app */;
@@ -103,6 +117,9 @@
 			);
 			mainGroup = 762D97B32F683D3500FF0133;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				76A0D97D2F9A230A000B4EBB /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 762D97BD2F683D3500FF0133 /* Products */;
 			projectDirPath = "";
@@ -346,6 +363,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		76A0D97D2F9A230A000B4EBB /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		76A0D97F2F9A2839000B4EBB /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 76A0D97D2F9A230A000B4EBB /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 762D97B42F683D3500FF0133 /* Project object */;
 }

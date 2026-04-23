@@ -1,33 +1,47 @@
 import Foundation
+import WhisperKit
 
 /// WhisperKit-based local speech recognition engine.
-/// Note: WhisperKit SPM dependency will be added when the package is integrated.
-/// This implementation provides the structural shell and model management.
+///
+/// The engine wraps one model variant. Construct an instance per variant
+/// (tiny, base, small, …); the shared registry hands out the right one.
+///
+/// Lifecycle: instances start with `isReady == false`. Call
+/// `downloadModel(progress:)` then `loadModel()` (or let `loadModel()`
+/// download on demand when the folder already exists but hasn't been
+/// loaded yet) before `transcribe` / `startStreaming`. Without that,
+/// those methods throw `.modelNotDownloaded`. UI layers (onboarding,
+/// settings) decide when to trigger the download.
 final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
     static let engineID = "whisperkit"
 
     let model: WhisperModel
     var info: EngineInfo
 
+    private var whisperKit: WhisperKit?
+    private let loadLock = NSLock()
+
     static let availableModels: [WhisperModel] = [
-        WhisperModel(id: "tiny", name: "Whisper Tiny", size: "75 MB"),
-        WhisperModel(id: "base", name: "Whisper Base", size: "150 MB"),
-        WhisperModel(id: "small", name: "Whisper Small", size: "500 MB"),
-        WhisperModel(id: "medium", name: "Whisper Medium", size: "1.5 GB"),
-        WhisperModel(id: "large-v2", name: "Whisper Large v2", size: "3.1 GB"),
-        WhisperModel(id: "large-v3", name: "Whisper Large v3", size: "3.1 GB"),
+        WhisperModel(id: "tiny", variant: "openai_whisper-tiny", name: "Whisper Tiny", size: "75 MB"),
+        WhisperModel(id: "base", variant: "openai_whisper-base", name: "Whisper Base", size: "150 MB"),
+        WhisperModel(id: "small", variant: "openai_whisper-small", name: "Whisper Small", size: "500 MB"),
+        WhisperModel(id: "medium", variant: "openai_whisper-medium", name: "Whisper Medium", size: "1.5 GB"),
+        WhisperModel(id: "large-v3", variant: "openai_whisper-large-v3", name: "Whisper Large v3", size: "3.1 GB"),
     ]
 
     /// Default engine ID used when the user has no saved preference (M1 ships with tiny).
     static let defaultModelEngineID = "\(engineID)-tiny"
 
     struct WhisperModel: Identifiable, Sendable {
+        /// Short stable ID we use internally (e.g. "tiny").
         let id: String
+        /// The argmaxinc/whisperkit-coreml repo variant name.
+        let variant: String
         let name: String
         let size: String
     }
 
-    init(model: WhisperModel, isReady: Bool = false) {
+    init(model: WhisperModel) {
         self.model = model
         self.info = EngineInfo(
             id: "\(Self.engineID)-\(model.id)",
@@ -36,64 +50,103 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             supportedLanguages: Self.supportedLanguages,
             supportsStreaming: true,
             modelSize: model.size,
-            isReady: isReady
+            isReady: Self.isModelDownloaded(model)
         )
     }
 
-    // MARK: - Model Management
+    // MARK: - Model storage
 
+    /// Root directory for all WhisperKit model folders we manage.
+    /// We override WhisperKit's default location so downloads live under
+    /// Application Support where we can clean them up consistently.
     static var modelsDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport.appendingPathComponent("TingMo/Models", isDirectory: true)
     }
 
-    static func modelDirectory(for modelID: String) -> URL {
-        modelsDirectory.appendingPathComponent("whisperkit-\(modelID)", isDirectory: true)
+    /// Directory for a specific model variant.
+    static func modelFolder(for model: WhisperModel) -> URL {
+        modelsDirectory.appendingPathComponent(model.variant, isDirectory: true)
     }
 
+    /// A model is considered downloaded if its folder exists and is non-empty.
+    /// WhisperKit populates the folder with several .mlmodelc bundles and
+    /// tokenizer files; we leave detailed validation to WhisperKit's loader.
     static func isModelDownloaded(_ model: WhisperModel) -> Bool {
-        let dir = modelDirectory(for: model.id)
-        return FileManager.default.fileExists(atPath: dir.path)
+        let folder = modelFolder(for: model)
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+            return false
+        }
+        return !contents.isEmpty
     }
 
-    /// Required files in a valid WhisperKit model folder.
-    static let requiredModelFiles = [
-        "MelSpectrogram.mlmodelc",
-        "AudioEncoder.mlmodelc",
-        "TextDecoder.mlmodelc",
-    ]
+    // MARK: - Download & load
 
-    /// Validate that a folder contains valid WhisperKit model files.
-    static func validateModelFolder(_ url: URL) -> Result<Void, SpeechEngineError> {
-        let missing = requiredModelFiles.filter { fileName in
-            !FileManager.default.fileExists(atPath: url.appendingPathComponent(fileName).path)
+    /// Download the model variant into our managed folder.
+    /// No-op if already present on disk.
+    func downloadModel(progress: (@Sendable (Double) -> Void)? = nil) async throws {
+        if Self.isModelDownloaded(model) {
+            info.isReady = true
+            return
         }
-        if missing.isEmpty {
-            return .success(())
-        } else {
-            return .failure(.invalidModelFiles(missing: missing))
-        }
-    }
 
-    /// Import a local model folder by copying it to the models directory.
-    static func importModel(from sourceURL: URL, as modelID: String) throws {
-        switch validateModelFolder(sourceURL) {
-        case .success:
-            let destination = modelDirectory(for: modelID)
-            try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
+        try FileManager.default.createDirectory(
+            at: Self.modelsDirectory,
+            withIntermediateDirectories: true
+        )
+
+        do {
+            let downloadedFolder = try await WhisperKit.download(
+                variant: model.variant,
+                downloadBase: Self.modelsDirectory,
+                from: "argmaxinc/whisperkit-coreml"
+            ) { p in
+                progress?(p.fractionCompleted)
             }
-            try FileManager.default.copyItem(at: sourceURL, to: destination)
-        case .failure(let error):
-            throw error
+            // WhisperKit may return a subfolder path; if it differs from our
+            // expected location, symlink/rename so our isReady check works.
+            let expected = Self.modelFolder(for: model)
+            if downloadedFolder.standardizedFileURL != expected.standardizedFileURL,
+               !FileManager.default.fileExists(atPath: expected.path) {
+                try? FileManager.default.createSymbolicLink(at: expected, withDestinationURL: downloadedFolder)
+            }
+            info.isReady = true
+        } catch {
+            throw SpeechEngineError.networkError(underlying: error)
         }
     }
 
-    /// Download base URL — user can override for mirror sources.
-    static var customDownloadBase: String? {
-        get { UserDefaults.standard.string(forKey: "WhisperKit.customDownloadBase") }
-        set { UserDefaults.standard.set(newValue, forKey: "WhisperKit.customDownloadBase") }
+    /// Load the model into memory. Must be called before transcribe/startStreaming.
+    /// Downloads first if needed.
+    func loadModel() async throws {
+        loadLock.lock()
+        let alreadyLoaded = whisperKit != nil
+        loadLock.unlock()
+        if alreadyLoaded { return }
+
+        if !Self.isModelDownloaded(model) {
+            try await downloadModel()
+        }
+
+        do {
+            let config = WhisperKitConfig(
+                model: model.variant,
+                modelRepo: "argmaxinc/whisperkit-coreml",
+                modelFolder: Self.modelFolder(for: model).path,
+                verbose: false,
+                logLevel: .error,
+                prewarm: true,
+                load: true,
+                download: false
+            )
+            let kit = try await WhisperKit(config)
+            loadLock.lock()
+            whisperKit = kit
+            loadLock.unlock()
+            info.isReady = true
+        } catch {
+            throw SpeechEngineError.transcriptionFailed(underlying: error)
+        }
     }
 
     // MARK: - SpeechEngine Protocol
@@ -102,10 +155,34 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         guard info.isReady else { throw SpeechEngineError.modelNotDownloaded }
         guard supportsLanguage(language) else { throw SpeechEngineError.unsupportedLanguage(language) }
 
-        // TODO: Integrate WhisperKit transcription when SPM dependency is added.
-        // This returns a placeholder that will be replaced with real WhisperKit calls.
+        loadLock.lock()
+        let kit = whisperKit
+        loadLock.unlock()
+        guard let kit else { throw SpeechEngineError.modelNotDownloaded }
+
+        let options = DecodingOptions(
+            task: .transcribe,
+            language: language,
+            temperature: 0.0,
+            wordTimestamps: false,
+            suppressBlank: true,
+            chunkingStrategy: .vad
+        )
+
+        let results: [TranscriptionResult]
+        do {
+            let transcriptionResults = try await kit.transcribe(
+                audioPath: audioURL.path,
+                decodeOptions: options
+            )
+            let text = transcriptionResults.map(\.text).joined(separator: " ")
+            results = [.final(text)]
+        } catch {
+            throw SpeechEngineError.transcriptionFailed(underlying: error)
+        }
+
         return AsyncStream { continuation in
-            continuation.yield(.final("[WhisperKit \(model.name): transcription placeholder]"))
+            for r in results { continuation.yield(r) }
             continuation.finish()
         }
     }
@@ -114,22 +191,60 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         guard info.isReady else { throw SpeechEngineError.modelNotDownloaded }
         guard supportsLanguage(language) else { throw SpeechEngineError.unsupportedLanguage(language) }
 
-        // TODO: Integrate WhisperKit streaming when SPM dependency is added.
-        let stopped = UncheckedSendable(value: false)
+        loadLock.lock()
+        let kit = whisperKit
+        loadLock.unlock()
+        guard let kit, let tokenizer = kit.tokenizer else {
+            throw SpeechEngineError.modelNotDownloaded
+        }
+
+        let continuationBox = StreamContinuationBox()
         let stream = AsyncStream<TranscriptionResult> { continuation in
-            continuation.onTermination = { @Sendable _ in }
-            Task {
-                while !stopped.value {
-                    try await Task.sleep(for: .milliseconds(500))
-                    if stopped.value { break }
-                    continuation.yield(.partial("[streaming...]"))
-                }
-                continuation.finish()
+            continuationBox.set(continuation)
+        }
+
+        let options = DecodingOptions(
+            task: .transcribe,
+            language: language,
+            temperature: 0.0,
+            wordTimestamps: false,
+            suppressBlank: true
+        )
+
+        let transcriber = AudioStreamTranscriber(
+            audioEncoder: kit.audioEncoder,
+            featureExtractor: kit.featureExtractor,
+            segmentSeeker: kit.segmentSeeker,
+            textDecoder: kit.textDecoder,
+            tokenizer: tokenizer,
+            audioProcessor: kit.audioProcessor,
+            decodingOptions: options
+        ) { _, newState in
+            let confirmed = newState.confirmedSegments.map(\.text).joined(separator: " ")
+            let unconfirmed = newState.unconfirmedSegments.map(\.text).joined(separator: " ")
+            let partial = [confirmed, unconfirmed].filter { !$0.isEmpty }.joined(separator: " ")
+            if !partial.isEmpty {
+                continuationBox.yield(.partial(partial))
             }
         }
-        let stop: @Sendable () -> Void = {
-            stopped.setValue(true)
+
+        let transcriberBox = TranscriberBox(transcriber)
+
+        Task {
+            do {
+                try await transcriber.startStreamTranscription()
+            } catch {
+                continuationBox.finish()
+            }
         }
+
+        let stop: @Sendable () -> Void = {
+            Task {
+                await transcriberBox.stop()
+                continuationBox.finish()
+            }
+        }
+
         return (stream, stop)
     }
 
@@ -142,9 +257,33 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
     ]
 }
 
-/// Helper for passing mutable state across sendable boundaries.
-private final class UncheckedSendable<T>: @unchecked Sendable {
-    var value: T
-    init(value: T) { self.value = value }
-    func setValue(_ newValue: T) { value = newValue }
+// MARK: - Sendable wrappers
+
+private final class StreamContinuationBox: @unchecked Sendable {
+    private var continuation: AsyncStream<TranscriptionResult>.Continuation?
+    private let lock = NSLock()
+
+    func set(_ c: AsyncStream<TranscriptionResult>.Continuation) {
+        lock.lock(); defer { lock.unlock() }
+        continuation = c
+    }
+
+    func yield(_ r: TranscriptionResult) {
+        lock.lock(); defer { lock.unlock() }
+        continuation?.yield(r)
+    }
+
+    func finish() {
+        lock.lock(); defer { lock.unlock() }
+        continuation?.finish()
+        continuation = nil
+    }
+}
+
+private actor TranscriberBox {
+    private let transcriber: AudioStreamTranscriber
+    init(_ t: AudioStreamTranscriber) { self.transcriber = t }
+    func stop() async {
+        await transcriber.stopStreamTranscription()
+    }
 }
