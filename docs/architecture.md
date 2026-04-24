@@ -39,11 +39,11 @@ TingMo/
   Context/                      # M3（Accessibility 基础项）
   LLM/                          # M3
   ConfigPreset/                 # M4（极简版），完整版 1.0 后
-  KnowledgeBase/                # M5（历史存储 + 向量索引 + 检索 + 管理 UI）
   UIRefresh/                    # M6（范围待定）
   Updater/                      # M7（Sparkle）
 
   # —— 1.0 后 ——
+  KnowledgeBase/                # 历史存储 + 向量索引 + 检索 + 管理 UI
   Dictionary/                   # 自定义词典（1.0 后）
   History/                      # 完整历史 UI + 音频重试（1.0 后；M4 已有基础存储）
   Sync/                         # iCloud 同步（1.0 后）
@@ -80,9 +80,11 @@ M4 只存 LLM 配置（provider / endpoint / key-ref / model / prompt / temperat
 
 1.0 后再扩展为完整 Preset（引擎、语言、设备选择模式、活跃词典/知识库分片），届时再引入菜单栏切换器、数量限制、iCloud 同步（API Key 不同步）。
 
-### 3.5 知识库（Knowledge Base）
+### 3.5 知识库（Knowledge Base，1.0 后）
 
 LLM 纠正前的个性化语义检索层。定位取代自定义词典，成为 v1 的个性化主力。
+
+知识库不进入 1.0 前主线；M4 Preset 不承载知识库开关，也不绑定知识库分片。1.0 后启动该能力时，再完成技术选型并回填本节。
 
 **已定方向**
 - 纯本地，不上云，不做跨用户聚合
@@ -211,9 +213,9 @@ v1 仅实现前 4 项（Accessibility 基础 + 剪贴板）：
 | LLM 纠正延迟 | 用户自行决定是否启用 |
 | Parakeet 无中文支持 | 模型列表标注语言；中文场景推荐 Whisper |
 | App Store 沙盒限制 | 双轨分发：核心能力走独立版 |
-| 知识库 embedding 模型体积 | 选用小模型（bge-small 级别，~100MB Core ML）；必要时独立下载而非打包 |
-| 知识库检索延迟叠加在 LLM 之上 | top-K 小（默认 5），本地向量检索毫秒级；总链路仍以 LLM 网络延迟为主 |
-| 知识库噪声（低质量历史污染检索） | 管理 UI 允许删除 / 禁用来源；后续可加相关性阈值过滤 |
+| 1.0 后知识库 embedding 模型体积 | 选用小模型（bge-small 级别，~100MB Core ML）；必要时独立下载而非打包 |
+| 1.0 后知识库检索延迟叠加在 LLM 之上 | top-K 小（默认 5），本地向量检索毫秒级；总链路仍以 LLM 网络延迟为主 |
+| 1.0 后知识库噪声（低质量历史污染检索） | 管理 UI 允许删除 / 禁用来源；后续可加相关性阈值过滤 |
 
 ## 6. 开发工作流
 
