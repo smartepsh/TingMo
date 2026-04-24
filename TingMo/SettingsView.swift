@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Bindable var downloadSource: DownloadSourcePreference
     @Bindable var importedModelStore: ImportedModelStore
     @Bindable var llmSettings: LLMSettingsStore
+    @Bindable var contextSettings: ContextSettingsStore
 
     @Environment(\.openWindow) private var openWindow
 
@@ -42,6 +43,8 @@ struct SettingsView: View {
             }
 
             LLMSettingsSection(settings: llmSettings)
+
+            ContextSettingsSection(settings: contextSettings)
 
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)

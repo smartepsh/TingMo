@@ -13,6 +13,7 @@ struct TingMoApp: App {
     @State private var downloadSource = DownloadSourcePreference()
     @State private var importedModelStore = ImportedModelStore()
     @State private var llmSettings = LLMSettingsStore()
+    @State private var contextSettings = ContextSettingsStore()
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
@@ -37,6 +38,7 @@ struct TingMoApp: App {
         let downloadSource = DownloadSourcePreference()
         let importedStore = ImportedModelStore()
         let llmSettings = LLMSettingsStore()
+        let contextSettings = ContextSettingsStore()
         let registry = EngineRegistry(
             downloadSource: downloadSource,
             importedModelStore: importedStore
@@ -47,6 +49,7 @@ struct TingMoApp: App {
         _downloadSource = State(initialValue: downloadSource)
         _importedModelStore = State(initialValue: importedStore)
         _llmSettings = State(initialValue: llmSettings)
+        _contextSettings = State(initialValue: contextSettings)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
             languagePreference: languagePreference
@@ -208,7 +211,8 @@ struct TingMoApp: App {
                 languagePreference: languagePreference,
                 downloadSource: downloadSource,
                 importedModelStore: importedModelStore,
-                llmSettings: llmSettings
+                llmSettings: llmSettings,
+                contextSettings: contextSettings
             )
         }
 
