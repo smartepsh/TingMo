@@ -40,9 +40,6 @@
         }
       }
     },
-    "Anthropic keys are stored in the local Keychain and are never written to presets or UserDefaults." : {
-
-    },
     "API Key" : {
 
     },
@@ -50,6 +47,9 @@
 
     },
     "API key saved in the Keychain. Use 'Test Connection' to verify." : {
+
+    },
+    "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults." : {
 
     },
     "Application Name" : {
@@ -109,6 +109,9 @@
 
     },
     "Default" : {
+
+    },
+    "Default Preset" : {
 
     },
     "Delete" : {
@@ -314,9 +317,6 @@
     "Language" : {
 
     },
-    "LLM Correction" : {
-
-    },
     "Loading…" : {
 
     },
@@ -507,6 +507,9 @@
           }
         }
       }
+    },
+    "Preset Name" : {
+
     },
     "Press a key..." : {
       "localizations" : {
@@ -801,6 +804,9 @@
     "Test Connection" : {
 
     },
+    "The default preset stores LLM configuration. Speech engine, model, language, device, and knowledge-base settings stay independent." : {
+
+    },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {
         "zh-Hans" : {
@@ -876,9 +882,6 @@
       }
     },
     "Window Title" : {
-
-    },
-    "Works with OpenAI-compatible chat/completions endpoints, including local services such as Ollama." : {
 
     },
     "You're all set!" : {

@@ -1,24 +1,20 @@
 import Foundation
 import Observation
 
-/// The M4 preset shape: one default bundle for LLM correction settings and a
-/// placeholder switch for the future knowledge-base retrieval layer.
+/// The M4 preset shape: one default bundle for LLM correction settings.
 struct ConfigPreset: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
     var llm: LLMConfig
-    var knowledgeBaseEnabled: Bool
 
     init(
         id: UUID = UUID(),
         name: String = String(localized: "Default"),
-        llm: LLMConfig = LLMConfig(),
-        knowledgeBaseEnabled: Bool = false
+        llm: LLMConfig = LLMConfig()
     ) {
         self.id = id
         self.name = name
         self.llm = llm
-        self.knowledgeBaseEnabled = knowledgeBaseEnabled
     }
 }
 
@@ -47,11 +43,6 @@ final class ConfigPresetStore {
     var llmConfig: LLMConfig {
         get { defaultPreset.llm }
         set { defaultPreset.llm = newValue }
-    }
-
-    var knowledgeBaseEnabled: Bool {
-        get { defaultPreset.knowledgeBaseEnabled }
-        set { defaultPreset.knowledgeBaseEnabled = newValue }
     }
 
     func resetProviderDefaults() {

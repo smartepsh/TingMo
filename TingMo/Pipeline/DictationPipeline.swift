@@ -172,13 +172,11 @@ final class DictationPipeline {
     }
 
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
-        let preset = presetStore.defaultPreset
-        let llmConfig = preset.llm
+        let llmConfig = presetStore.defaultPreset.llm
         guard llmConfig.enabled else { return (transcript, nil) }
 
         do {
             let context = ContextAggregator(settings: contextSettings).collect()
-                .filter { preset.knowledgeBaseEnabled || $0.kind != .knowledgeBase }
             if contextSettings.debugLoggingEnabled {
                 ContextDebugLogger.log(context)
             }

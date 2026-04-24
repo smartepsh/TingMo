@@ -76,7 +76,7 @@ WhisperKit 模型默认从 HuggingFace 下载（散文件夹），支持：
 
 ### 3.4 Config Preset（M4 极简）
 
-M4 只存两项：LLM 配置（provider / endpoint / key-ref / model / prompt / temperature） + 是否启用知识库。用户只有一个默认 Preset，先不承担引擎/语言/设备模式。
+M4 只存 LLM 配置（provider / endpoint / key-ref / model / prompt / temperature）。用户只有一个默认 Preset，先不承担引擎/语言/设备模式，也不绑定知识库。
 
 1.0 后再扩展为完整 Preset（引擎、语言、设备选择模式、活跃词典/知识库分片），届时再引入菜单栏切换器、数量限制、iCloud 同步（API Key 不同步）。
 

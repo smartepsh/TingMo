@@ -68,8 +68,6 @@ struct PresetSettingsSection: View {
                 }
                 Slider(value: llmBinding(\.temperature), in: 0...2, step: 0.1)
             }
-
-            Toggle(String(localized: "Enable Knowledge Base"), isOn: presetBinding(\.knowledgeBaseEnabled))
         } header: {
             Text("Default Preset")
         } footer: {
@@ -128,7 +126,7 @@ struct PresetSettingsSection: View {
     private var footerText: String {
         switch presetStore.defaultPreset.llm.provider {
         case .openAICompatible:
-            String(localized: "The default preset stores LLM configuration and the knowledge-base switch. Speech engine, model, language, and device settings stay independent.")
+            String(localized: "The default preset stores LLM configuration. Speech engine, model, language, device, and knowledge-base settings stay independent.")
         case .anthropic:
             String(localized: "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults.")
         }

@@ -68,8 +68,8 @@
 
 **成果：** 将用户的 LLM 配置沉淀为可复用的 Preset，先保持范围克制。
 
-- **极简 Preset：** 仅承载"LLM 配置 + 是否启用知识库"两项
-- 设置内管理 Preset 基础配置：provider / endpoint / key-ref / model / prompt / temperature / 知识库开关
+- **极简 Preset：** 仅承载 LLM 配置
+- 设置内管理 Preset 基础配置：provider / endpoint / key-ref / model / prompt / temperature
 - 默认 Preset 与迁移：现有 LLM 配置升级为默认 Preset
 - Preset 配置用于纠正管线，不影响 M2 的引擎/模型切换
 - **推迟：** 完整 CRUD、多 Preset 菜单栏切换、按应用自动切换、Preset ↔ 词典 ↔ 知识库分片绑定（→ 1.0 后）
@@ -94,7 +94,7 @@
 
 ### 推迟到 1.0 后
 - iCloud 向量同步
-- Per-Preset 知识库分片（目前全局共用）
+- Per-Preset 知识库分片（M4 不绑定知识库）
 
 ## M6 — UI 调整
 

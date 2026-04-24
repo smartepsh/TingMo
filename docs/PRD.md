@@ -59,7 +59,7 @@
 - 本地化：简体中文 + 英文，跟随系统语言，其他语言降级为英文
 
 **个性化**
-- Config Preset 独立里程碑：先仅承载 LLM 配置 + 知识库开关；完整 Preset（引擎/语言/设备模式/词典/多 Preset 切换）列为 1.0 后目标
+- Config Preset 独立里程碑：先仅承载 LLM 配置；完整 Preset（引擎/语言/设备模式/词典/多 Preset 切换）列为 1.0 后目标
 - API Key 始终存本地 Keychain，不走 iCloud
 
 **分发**
@@ -109,7 +109,7 @@
 ## 9. 术语表
 
 - **知识库（Knowledge Base）** — 本地语义检索源，内容包括历史转录、用户纠正、手动笔记、导入文本。LLM 纠正前通过 embedding 检索 top-K 注入 prompt。纯本地，默认关闭。
-- **Config Preset（极简版）** — 独立里程碑；先仅承载 LLM 配置 + 知识库开关，非完整 Preset。完整版（含引擎/语言/设备/词典切换）列为 1.0 后目标。
+- **Config Preset（极简版）** — 独立里程碑；先仅承载 LLM 配置，非完整 Preset。完整版（含引擎/语言/设备/词典切换）列为 1.0 后目标。
 - **设备选择模式** — `system` | `specified` | `priority`。当前 v1 按系统默认设备或 audio-device 模块优先级运行，完整三模式打通列为 1.0 后目标。
 - **Active App 全文深读** — 通过 Accessibility API 对前台应用做完整文本抽取（1.0 后目标）。
 - **双模式快捷键** — 同一个键位，按松开时的持续时长（< 300ms 与 ≥ 300ms）判断是 toggle 还是 push-to-record。
