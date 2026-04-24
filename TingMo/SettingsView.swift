@@ -12,6 +12,10 @@ struct SettingsView: View {
 
     @Environment(\.openWindow) private var openWindow
 
+    private var remoteEngines: [RemoteSpeechEngine] {
+        engineRegistry.engines.compactMap { $0 as? RemoteSpeechEngine }
+    }
+
     var body: some View {
         Form {
             EngineSettingsView(
@@ -28,6 +32,13 @@ struct SettingsView: View {
                 engineRegistry: engineRegistry,
                 importedModelStore: importedModelStore
             )
+
+            ForEach(remoteEngines, id: \.info.id) { engine in
+                RemoteEngineSection(
+                    engine: engine,
+                    engineRegistry: engineRegistry
+                )
+            }
 
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)

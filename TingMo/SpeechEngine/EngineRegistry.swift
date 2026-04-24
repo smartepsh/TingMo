@@ -79,8 +79,28 @@ final class EngineRegistry {
             register(WhisperKitEngine(model: model))
         }
 
+        // Remote engines — readiness is driven by whether an API key is
+        // present in the keychain. Engines stay registered even when the
+        // key is missing so the settings UI can display them.
+        register(RemoteSpeechEngine(config: .groq))
+        register(RemoteSpeechEngine(config: .elevenlabs))
+
         // Parakeet — English-only, CoreML
         register(ParakeetEngine(isReady: false))
+    }
+
+    /// Re-query the keychain for every remote engine and update `isReady`.
+    /// Called after a successful API key save / delete / connectivity test.
+    func refreshRemoteEnginesReadiness() {
+        for engine in engines {
+            if let remote = engine as? RemoteSpeechEngine {
+                remote.refreshReadiness()
+            }
+        }
+        // Nudge the `engines` array so @Observable consumers see the
+        // downstream `info.isReady` change — SwiftUI only tracks the
+        // array-level reference by default.
+        engines = engines
     }
 
     private func registerImportedModels() {
