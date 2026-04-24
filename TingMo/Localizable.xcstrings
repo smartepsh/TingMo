@@ -40,6 +40,9 @@
         }
       }
     },
+    "Anthropic keys are stored in the local Keychain and are never written to presets or UserDefaults." : {
+
+    },
     "API Key" : {
 
     },
@@ -47,6 +50,9 @@
 
     },
     "API key saved in the Keychain. Use 'Test Connection' to verify." : {
+
+    },
+    "Application Name" : {
 
     },
     "Audio Devices" : {
@@ -78,13 +84,25 @@
     "Clear" : {
 
     },
+    "Clear Key" : {
+
+    },
+    "Clipboard" : {
+
+    },
     "Coming Soon" : {
 
     },
     "Connection OK" : {
 
     },
+    "Context" : {
+
+    },
     "Current endpoint: %@" : {
+
+    },
+    "Custom" : {
 
     },
     "Custom…" : {
@@ -139,6 +157,12 @@
           }
         }
       }
+    },
+    "Enable LLM Correction" : {
+
+    },
+    "Endpoint" : {
+
     },
     "Endpoint URL" : {
 
@@ -266,6 +290,9 @@
     "Incompatible with %@" : {
 
     },
+    "Input Text" : {
+
+    },
     "Input: %@" : {
 
     },
@@ -275,7 +302,19 @@
     "Invalid model: required bundle '%@' is missing." : {
 
     },
+    "Key optional" : {
+
+    },
+    "Key saved" : {
+
+    },
+    "Knowledge Base" : {
+
+    },
     "Language" : {
+
+    },
+    "LLM Correction" : {
 
     },
     "Loading…" : {
@@ -285,6 +324,15 @@
 
     },
     "Local Engines" : {
+
+    },
+    "Log context for dogfood" : {
+
+    },
+    "Log current context" : {
+
+    },
+    "Lower priority numbers are injected first. Sensitive fields are excluded before prompt construction. Context logging writes non-sensitive context previews to the app log." : {
 
     },
     "Microphone" : {
@@ -304,6 +352,9 @@
 
     },
     "Missing API Key" : {
+
+    },
+    "Model" : {
 
     },
     "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk." : {
@@ -343,6 +394,9 @@
       }
     },
     "No internet connection." : {
+
+    },
+    "No key" : {
 
     },
     "No notch detected — will use Top Center mode" : {
@@ -441,6 +495,9 @@
     "Parakeet (English) — Coming Soon" : {
 
     },
+    "Per-item limit: %lld chars" : {
+
+    },
     "Permissions" : {
       "localizations" : {
         "zh-Hans" : {
@@ -492,6 +549,9 @@
         }
       }
     },
+    "Priority %lld" : {
+
+    },
     "Processing..." : {
       "localizations" : {
         "zh-Hans" : {
@@ -501,6 +561,9 @@
           }
         }
       }
+    },
+    "Provider" : {
+
     },
     "Quit" : {
       "localizations" : {
@@ -603,6 +666,9 @@
     "Save" : {
 
     },
+    "Save Key" : {
+
+    },
     "Screen Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -612,6 +678,9 @@
           }
         }
       }
+    },
+    "Selected Text" : {
+
     },
     "Server returned an error (%lld)." : {
 
@@ -723,6 +792,12 @@
     "System Default" : {
 
     },
+    "System Prompt" : {
+
+    },
+    "Temperature" : {
+
+    },
     "Test Connection" : {
 
     },
@@ -762,6 +837,9 @@
     "Total disk usage" : {
 
     },
+    "Total limit: %lld chars" : {
+
+    },
     "Transcribing…" : {
 
     },
@@ -796,6 +874,12 @@
           }
         }
       }
+    },
+    "Window Title" : {
+
+    },
+    "Works with OpenAI-compatible chat/completions endpoints, including local services such as Ollama." : {
+
     },
     "You're all set!" : {
       "localizations" : {
