@@ -113,6 +113,13 @@ struct TingMoApp: App {
 
             Divider()
 
+            Menu(String(localized: "Engine")) {
+                ForEach(engineRegistry.engines, id: \.info.id) { engine in
+                    engineMenuButton(engine: engine)
+                }
+            }
+            .disabled(pipeline.state != .idle)
+
             Menu(String(localized: "Speech Model")) {
                 ForEach(WhisperKitEngine.availableModels) { model in
                     let engineID = "\(WhisperKitEngine.engineID)-\(model.id)"
@@ -123,6 +130,16 @@ struct TingMoApp: App {
 
                 Button(String(localized: "Parakeet (English) — Coming Soon")) {}
                     .disabled(true)
+            }
+            .disabled(pipeline.state != .idle)
+
+            Menu(String(localized: "Language")) {
+                ForEach(LanguagePreference.availableLanguages) { lang in
+                    Button(lang.name) {
+                        languagePreference.current = lang.code
+                    }
+                    .disabled(languagePreference.current == lang.code)
+                }
             }
             .disabled(pipeline.state != .idle)
 
@@ -245,6 +262,36 @@ struct TingMoApp: App {
                     }
                 }
             }
+    }
+
+    // MARK: - Engine menu
+
+    @ViewBuilder
+    private func engineMenuButton(engine: any SpeechEngine) -> some View {
+        let isActive = engineRegistry.activeEngineID == engine.info.id
+        let compatible = engine.supportsLanguage(languagePreference.current)
+        let ready = engine.info.isReady
+
+        let title: String = {
+            var parts: [String] = []
+            if isActive { parts.append("✓") }
+            parts.append(engine.info.name)
+            if !compatible {
+                parts.append("— \(String(localized: "Incompatible"))")
+            } else if !ready {
+                if engine.info.type == .remote {
+                    parts.append("— \(String(localized: "Missing API Key"))")
+                } else {
+                    parts.append("— \(String(localized: "Not Downloaded"))")
+                }
+            }
+            return parts.joined(separator: " ")
+        }()
+
+        Button(title) {
+            engineRegistry.setActiveEngine(engine.info.id)
+        }
+        .disabled(isActive || !compatible || !ready)
     }
 
     // MARK: - Model menu
