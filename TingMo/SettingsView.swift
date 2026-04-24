@@ -9,7 +9,7 @@ struct SettingsView: View {
     @Bindable var languagePreference: LanguagePreference
     @Bindable var downloadSource: DownloadSourcePreference
     @Bindable var importedModelStore: ImportedModelStore
-    @Bindable var llmSettings: LLMSettingsStore
+    @Bindable var presetStore: ConfigPresetStore
     @Bindable var contextSettings: ContextSettingsStore
 
     @Environment(\.openWindow) private var openWindow
@@ -42,7 +42,7 @@ struct SettingsView: View {
                 )
             }
 
-            LLMSettingsSection(settings: llmSettings)
+            PresetSettingsSection(presetStore: presetStore)
 
             ContextSettingsSection(settings: contextSettings)
 

@@ -46,7 +46,7 @@ final class DictationPipeline {
 
     private let registry: EngineRegistry
     private let languagePreference: LanguagePreference
-    private let llmSettings: LLMSettingsStore
+    private let presetStore: ConfigPresetStore
     private let contextSettings: ContextSettingsStore
     private let correctionService = LLMCorrectionService()
     private let capture = AudioCapture()
@@ -54,12 +54,12 @@ final class DictationPipeline {
     init(
         registry: EngineRegistry,
         languagePreference: LanguagePreference,
-        llmSettings: LLMSettingsStore,
+        presetStore: ConfigPresetStore,
         contextSettings: ContextSettingsStore
     ) {
         self.registry = registry
         self.languagePreference = languagePreference
-        self.llmSettings = llmSettings
+        self.presetStore = presetStore
         self.contextSettings = contextSettings
     }
 
@@ -172,17 +172,20 @@ final class DictationPipeline {
     }
 
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
-        guard llmSettings.config.enabled else { return (transcript, nil) }
+        let preset = presetStore.defaultPreset
+        let llmConfig = preset.llm
+        guard llmConfig.enabled else { return (transcript, nil) }
 
         do {
             let context = ContextAggregator(settings: contextSettings).collect()
+                .filter { preset.knowledgeBaseEnabled || $0.kind != .knowledgeBase }
             if contextSettings.debugLoggingEnabled {
                 ContextDebugLogger.log(context)
             }
             let corrected = try await correctionService.correct(
                 transcript: transcript,
                 context: context,
-                config: llmSettings.config
+                config: llmConfig
             )
             return (corrected, nil)
         } catch {

@@ -1,15 +1,17 @@
 import SwiftUI
 
-/// Settings section for the pre-preset global LLM correction config.
-struct LLMSettingsSection: View {
-    @Bindable var settings: LLMSettingsStore
+struct PresetSettingsSection: View {
+    @Bindable var presetStore: ConfigPresetStore
 
     @State private var apiKey: String = ""
     @State private var apiKeySaved = false
 
     var body: some View {
         Section {
-            Toggle(String(localized: "Enable LLM Correction"), isOn: configBinding(\.enabled))
+            TextField(String(localized: "Preset Name"), text: presetBinding(\.name))
+                .textFieldStyle(.roundedBorder)
+
+            Toggle(String(localized: "Enable LLM Correction"), isOn: llmBinding(\.enabled))
 
             Picker(String(localized: "Provider"), selection: providerBinding) {
                 ForEach(LLMProviderID.allCases) { provider in
@@ -17,11 +19,11 @@ struct LLMSettingsSection: View {
                 }
             }
 
-            TextField(String(localized: "Endpoint"), text: configBinding(\.endpoint))
+            TextField(String(localized: "Endpoint"), text: llmBinding(\.endpoint))
                 .textFieldStyle(.roundedBorder)
                 .textContentType(.URL)
 
-            TextField(String(localized: "Model"), text: configBinding(\.model))
+            TextField(String(localized: "Model"), text: llmBinding(\.model))
                 .textFieldStyle(.roundedBorder)
 
             SecureField(String(localized: "API Key"), text: $apiKey)
@@ -37,7 +39,7 @@ struct LLMSettingsSection: View {
                 Button(String(localized: "Clear Key"), role: .destructive) {
                     clearAPIKey()
                 }
-                .disabled(!settings.hasAPIKey() && apiKey.isEmpty)
+                .disabled(!presetStore.hasAPIKey() && apiKey.isEmpty)
 
                 Spacer()
 
@@ -48,7 +50,7 @@ struct LLMSettingsSection: View {
                 Text(String(localized: "System Prompt"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextEditor(text: configBinding(\.systemPrompt))
+                TextEditor(text: llmBinding(\.systemPrompt))
                     .font(.body)
                     .frame(minHeight: 90)
                     .overlay {
@@ -61,49 +63,58 @@ struct LLMSettingsSection: View {
                 HStack {
                     Text(String(localized: "Temperature"))
                     Spacer()
-                    Text(settings.config.normalizedTemperature, format: .number.precision(.fractionLength(1)))
+                    Text(presetStore.defaultPreset.llm.normalizedTemperature, format: .number.precision(.fractionLength(1)))
                         .foregroundStyle(.secondary)
                 }
-                Slider(value: configBinding(\.temperature), in: 0...2, step: 0.1)
+                Slider(value: llmBinding(\.temperature), in: 0...2, step: 0.1)
             }
+
+            Toggle(String(localized: "Enable Knowledge Base"), isOn: presetBinding(\.knowledgeBaseEnabled))
         } header: {
-            Text("LLM Correction")
+            Text("Default Preset")
         } footer: {
             Text(footerText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .onAppear {
-            apiKeySaved = settings.hasAPIKey()
+            apiKeySaved = presetStore.hasAPIKey()
         }
     }
 
     private var providerBinding: Binding<LLMProviderID> {
         Binding(
-            get: { settings.config.provider },
+            get: { presetStore.defaultPreset.llm.provider },
             set: { provider in
-                guard settings.config.provider != provider else { return }
-                settings.config.provider = provider
-                settings.resetProviderDefaults()
+                guard presetStore.defaultPreset.llm.provider != provider else { return }
+                presetStore.defaultPreset.llm.provider = provider
+                presetStore.resetProviderDefaults()
                 apiKey = ""
-                apiKeySaved = settings.hasAPIKey()
+                apiKeySaved = presetStore.hasAPIKey()
             }
         )
     }
 
-    private func configBinding<Value>(_ keyPath: WritableKeyPath<LLMConfig, Value>) -> Binding<Value> {
+    private func llmBinding<Value>(_ keyPath: WritableKeyPath<LLMConfig, Value>) -> Binding<Value> {
         Binding(
-            get: { settings.config[keyPath: keyPath] },
-            set: { settings.config[keyPath: keyPath] = $0 }
+            get: { presetStore.defaultPreset.llm[keyPath: keyPath] },
+            set: { presetStore.defaultPreset.llm[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private func presetBinding<Value>(_ keyPath: WritableKeyPath<ConfigPreset, Value>) -> Binding<Value> {
+        Binding(
+            get: { presetStore.defaultPreset[keyPath: keyPath] },
+            set: { presetStore.defaultPreset[keyPath: keyPath] = $0 }
         )
     }
 
     private var keyStatusLabel: some View {
         Group {
-            if settings.hasAPIKey() || apiKeySaved {
+            if presetStore.hasAPIKey() || apiKeySaved {
                 Label(String(localized: "Key saved"), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-            } else if settings.config.usesLocalEndpoint && settings.config.provider == .openAICompatible {
+            } else if presetStore.defaultPreset.llm.usesLocalEndpoint && presetStore.defaultPreset.llm.provider == .openAICompatible {
                 Label(String(localized: "Key optional"), systemImage: "network")
                     .foregroundStyle(.secondary)
             } else {
@@ -115,23 +126,23 @@ struct LLMSettingsSection: View {
     }
 
     private var footerText: String {
-        switch settings.config.provider {
+        switch presetStore.defaultPreset.llm.provider {
         case .openAICompatible:
-            String(localized: "Works with OpenAI-compatible chat/completions endpoints, including local services such as Ollama.")
+            String(localized: "The default preset stores LLM configuration and the knowledge-base switch. Speech engine, model, language, and device settings stay independent.")
         case .anthropic:
-            String(localized: "Anthropic keys are stored in the local Keychain and are never written to presets or UserDefaults.")
+            String(localized: "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults.")
         }
     }
 
     private func saveAPIKey() {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        apiKeySaved = settings.saveAPIKey(trimmed)
+        apiKeySaved = presetStore.saveAPIKey(trimmed)
         apiKey = ""
     }
 
     private func clearAPIKey() {
-        _ = settings.clearAPIKey()
+        _ = presetStore.clearAPIKey()
         apiKey = ""
         apiKeySaved = false
     }
