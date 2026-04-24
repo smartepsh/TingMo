@@ -123,3 +123,23 @@ struct ContextAggregator {
         }
     }
 }
+
+enum ContextDebugLogger {
+    static func log(_ context: [LLMContextItem]) {
+        if context.isEmpty {
+            NSLog("[TingMo] LLM context: empty")
+            return
+        }
+
+        let summary = context.map { item in
+            let preview = item.text
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(240)
+            return "\(item.kind.rawValue)(priority=\(item.priority), chars=\(item.text.count)): \(preview)"
+        }
+        .joined(separator: " | ")
+
+        NSLog("[TingMo] LLM context: \(summary)")
+    }
+}

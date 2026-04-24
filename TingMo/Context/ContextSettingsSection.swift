@@ -38,6 +38,11 @@ struct ContextSettingsSection: View {
             }
 
             Toggle("Log context for dogfood", isOn: $settings.debugLoggingEnabled)
+
+            Button("Log current context") {
+                let context = ContextAggregator(settings: settings).collect()
+                ContextDebugLogger.log(context)
+            }
         } header: {
             Text("Context")
         } footer: {
