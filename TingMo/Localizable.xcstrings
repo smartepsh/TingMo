@@ -173,6 +173,9 @@
         }
       }
     },
+    "Microphone disconnected." : {
+
+    },
     "Next" : {
       "localizations" : {
         "zh-Hans" : {

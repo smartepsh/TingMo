@@ -41,7 +41,6 @@ final class TextInjector {
 
         pasteboard.clearContents()
         guard pasteboard.setString(text, forType: .string) else {
-            // Put the original contents back before giving up.
             snapshot.restore(to: pasteboard)
             throw TextInjectionError.pasteboardWriteFailed
         }

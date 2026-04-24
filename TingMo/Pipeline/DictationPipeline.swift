@@ -20,12 +20,16 @@ final class DictationPipeline {
         case notReady(reason: String)
         case alreadyRunning
         case notRunning
+        case noSpeech
+        case deviceUnavailable
 
         var errorDescription: String? {
             switch self {
             case .notReady(let reason): reason
             case .alreadyRunning: "Dictation is already running."
             case .notRunning: "Dictation is not running."
+            case .noSpeech: "No speech detected."
+            case .deviceUnavailable: "Microphone unavailable."
             }
         }
     }
@@ -65,8 +69,10 @@ final class DictationPipeline {
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording
         } catch {
-            lastError = error
-            throw error
+            // Normalize any capture failure to a user-facing error.
+            let surfaced = PipelineError.deviceUnavailable
+            lastError = surfaced
+            throw surfaced
         }
     }
 
@@ -114,41 +120,35 @@ final class DictationPipeline {
     private func runTranscription(audioURL: URL) async {
         defer { try? FileManager.default.removeItem(at: audioURL) }
 
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? Int) ?? 0
-        NSLog("[TingMo] transcription start: audioURL=\(audioURL.lastPathComponent) size=\(fileSize)B")
-
         guard let engine = registry.activeEngine else {
-            NSLog("[TingMo] no active engine")
             await finish(error: PipelineError.notReady(reason: "No active engine."))
             return
         }
 
         do {
             if let whisper = engine as? WhisperKitEngine {
-                NSLog("[TingMo] loading WhisperKit model…")
                 try await whisper.loadModel()
-                NSLog("[TingMo] WhisperKit loaded")
             }
 
-            NSLog("[TingMo] calling engine.transcribe lang=\(language)")
             let stream = try await engine.transcribe(audioURL: audioURL, language: language)
 
             var collected = ""
             for await result in stream {
                 switch result {
-                case .partial(let s): collected = s; NSLog("[TingMo] partial: \(s)")
-                case .final(let s): collected = s; NSLog("[TingMo] final: \(s)")
+                case .partial(let s), .final(let s): collected = s
                 }
             }
 
             let trimmed = collected.trimmingCharacters(in: .whitespacesAndNewlines)
-            NSLog("[TingMo] transcription done; chars=\(trimmed.count); text=\(trimmed)")
-            if !trimmed.isEmpty {
-                try await TextInjector.shared.inject(trimmed)
-                NSLog("[TingMo] inject OK")
-            } else {
-                NSLog("[TingMo] empty transcription; nothing to inject")
+            // Whisper's blank sentinel or an empty result means we heard no
+            // speech; treat it as a surfaced error rather than silent success.
+            let normalized = trimmed.replacingOccurrences(of: "[BLANK_AUDIO]", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalized.isEmpty {
+                await finish(error: PipelineError.noSpeech)
+                return
             }
+            try await TextInjector.shared.inject(normalized)
             await finish(error: nil)
         } catch {
             NSLog("[TingMo] transcription error: \(error)")

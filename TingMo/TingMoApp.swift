@@ -123,6 +123,13 @@ struct TingMoApp: App {
         } label: {
             Image(nsImage: showRecordingIcon ? Self.menuBarIconRecording : Self.menuBarIcon)
                 .onAppear {
+                    // Trigger the system's Accessibility prompt on first launch
+                    // so the user actually sees a dialog offering to open
+                    // System Settings. Without this, AXIsProcessTrusted stays
+                    // false silently and the global hotkey never works.
+                    if permissionManager.accessibilityStatus != .granted {
+                        permissionManager.requestAccessibility()
+                    }
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
                     prefetchDefaultModelIfNeeded()
@@ -132,7 +139,21 @@ struct TingMoApp: App {
                     audioDeviceManager.deviceDisconnectedDuringRecording = false
                     if pipeline.state == .recording {
                         pipeline.cancel()
-                        statusIndicatorManager.hide()
+                        statusIndicatorManager.showError(
+                            String(localized: "Microphone disconnected.")
+                        )
+                    }
+                }
+                .onChange(of: pipeline.state) { _, newState in
+                    // When the pipeline returns to idle after transcribing,
+                    // flash any surfaced error on the indicator, otherwise
+                    // hide it.
+                    if newState == .idle {
+                        if let err = pipeline.lastError {
+                            statusIndicatorManager.showError(err.localizedDescription)
+                        } else if statusIndicatorManager.isShowing {
+                            statusIndicatorManager.hide()
+                        }
                     }
                 }
         }
@@ -159,16 +180,20 @@ struct TingMoApp: App {
         if pipeline.state == .recording {
             pipeline.stopAndTranscribe()
             audioDeviceManager.isRecording = false
-            statusIndicatorManager.hide()
+            // Keep indicator visible in processing state; it hides on success
+            // or flashes the error via the lastError observer.
+            statusIndicatorManager.setProcessing(true)
         } else if pipeline.state == .idle {
             let preferredUID = audioDeviceManager.firstOnlineDevice()?.uid
             do {
                 try pipeline.start(preferredDeviceUID: preferredUID)
                 audioDeviceManager.isRecording = true
+                statusIndicatorManager.setProcessing(false)
                 statusIndicatorManager.audioLevel = 0.3
                 statusIndicatorManager.show()
             } catch {
-                // Error surfaced via pipeline.lastError + menu text.
+                let message = (pipeline.lastError ?? error).localizedDescription
+                statusIndicatorManager.showError(message)
             }
         }
     }
@@ -191,6 +216,7 @@ struct TingMoApp: App {
                     if pipeline.state == .recording {
                         pipeline.cancel()
                         audioDeviceManager.isRecording = false
+                        statusIndicatorManager.setProcessing(false)
                         statusIndicatorManager.hide()
                     }
                 }

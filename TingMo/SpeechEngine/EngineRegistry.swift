@@ -63,10 +63,7 @@ final class EngineRegistry {
         guard let whisper = activeEngine as? WhisperKitEngine else { return }
         guard whisper.info.isReady else { return }
         Task.detached {
-            NSLog("[TingMo] preloading engine \(whisper.info.id)…")
-            let t = Date()
             try? await whisper.loadModel()
-            NSLog("[TingMo] preloaded \(whisper.info.id) in \(Int(Date().timeIntervalSince(t) * 1000))ms")
         }
     }
 

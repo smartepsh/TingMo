@@ -54,14 +54,12 @@ final class AudioCapture {
            let deviceID = AudioDeviceEnumerator.deviceID(forUID: uid) {
             do {
                 try Self.setInputDevice(on: input, deviceID: deviceID)
-                NSLog("[TingMo] AudioCapture bound inputNode to device uid=\(uid) id=\(deviceID)")
             } catch {
                 NSLog("[TingMo] AudioCapture failed to bind device uid=\(uid): \(error); falling back to system default")
             }
         }
 
         let inputFormat = input.outputFormat(forBus: 0)
-        NSLog("[TingMo] AudioCapture start: input format sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount) fmt=\(inputFormat.commonFormat.rawValue)")
 
         // Whisper wants 16 kHz mono Float32.
         guard let wantFormat = AVAudioFormat(
@@ -108,7 +106,6 @@ final class AudioCapture {
 
         do {
             try engine.start()
-            NSLog("[TingMo] AudioCapture engine started; running=\(engine.isRunning)")
         } catch {
             input.removeTap(onBus: 0)
             file = nil
@@ -126,7 +123,6 @@ final class AudioCapture {
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
         isRunning = false
-        NSLog("[TingMo] AudioCapture stop: sessionPeak=\(sessionPeak) totalFrames=\(totalFrames)")
 
         let url = fileURL
         file = nil

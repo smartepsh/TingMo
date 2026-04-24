@@ -15,6 +15,14 @@ final class StatusIndicatorManager {
     var audioLevel: Float = 0
     var previewText: String = ""
     var isProcessing: Bool = false
+    /// When non-nil, the indicator renders an error state. Auto-cleared
+    /// after `errorDisplayDuration` by `showError(_:)`.
+    var errorMessage: String?
+
+    /// How long a flashed error stays visible before the indicator hides.
+    static let errorDisplayDuration: TimeInterval = 3.0
+
+    private var errorHideTask: Task<Void, Never>?
 
     /// How far (in points) the notch bar extends beyond each side of the physical notch.
     static let notchSideExtension: CGFloat = 34
@@ -28,12 +36,16 @@ final class StatusIndicatorManager {
     }
 
     func show() {
+        errorHideTask?.cancel()
+        errorMessage = nil
         guard !isShowing else { return }
         isShowing = true
         createPanel()
     }
 
     func hide() {
+        errorHideTask?.cancel()
+        errorMessage = nil
         isShowing = false
         panel?.orderOut(nil)
         panel = nil
@@ -49,6 +61,27 @@ final class StatusIndicatorManager {
 
     func setProcessing(_ processing: Bool) {
         isProcessing = processing
+    }
+
+    /// Flash an error on the indicator for ~3 seconds, then auto-hide.
+    /// Safe to call when the indicator is not currently visible.
+    @MainActor
+    func showError(_ message: String) {
+        errorHideTask?.cancel()
+        errorMessage = message
+        isProcessing = false
+        audioLevel = 0
+        if !isShowing { show() }
+
+        errorHideTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.errorDisplayDuration))
+            if Task.isCancelled { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.errorMessage = nil
+                self.hide()
+            }
+        }
     }
 
     // MARK: - Panel Management

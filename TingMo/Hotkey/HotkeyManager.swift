@@ -119,6 +119,7 @@ final class HotkeyManager {
             callback: callback,
             userInfo: selfPtr
         ) else {
+            NSLog("[TingMo] hotkey: CGEvent.tapCreate returned nil — likely missing Accessibility permission")
             return
         }
 
