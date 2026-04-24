@@ -12,18 +12,6 @@ enum DeviceSelectionMode: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// LLM correction configuration stored within a Config Preset.
-struct LLMConfig: Codable, Equatable {
-    var enabled: Bool = false
-    var provider: String = "openai" // "openai" or "anthropic"
-    var endpoint: String = ""
-    var model: String = ""
-    var systemPrompt: String = ""
-    var temperature: Double = 0.3
-
-    /// API Key is NOT stored here — it lives in Keychain per device.
-}
-
 /// A named configuration bundle combining engine, language, LLM, device mode, and dictionaries.
 struct ConfigPreset: Identifiable, Codable, Equatable {
     var id: UUID
