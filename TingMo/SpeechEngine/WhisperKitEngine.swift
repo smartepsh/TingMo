@@ -175,12 +175,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
     ) async throws {
         if model.isImported {
             // Imported models live entirely on the user's disk.
-            NSLog("[TingMo][Whisper] skip download — imported model id=\(model.id) folder=\(model.importedFolder?.path ?? "nil")")
             info.isReady = Self.isModelDownloaded(model)
             return
         }
         if Self.isModelDownloaded(model) {
-            NSLog("[TingMo][Whisper] skip download — already on disk id=\(model.id) path=\(Self.modelFolder(for: model).path)")
             info.isReady = true
             return
         }
@@ -189,10 +187,6 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             at: Self.modelsDirectory,
             withIntermediateDirectories: true
         )
-
-        NSLog("[TingMo][Whisper] download start id=\(model.id) variant=\(model.variant) endpoint=\(endpoint ?? "default") dest=\(Self.modelsDirectory.path)")
-        let clock = ContinuousClock()
-        let startTime = clock.now
 
         do {
             if let endpoint, !endpoint.isEmpty {
@@ -214,11 +208,8 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
                 }
             }
             Self.invalidateDiskUsage(for: model)
-            let elapsed = clock.now - startTime
-            NSLog("[TingMo][Whisper] download success id=\(model.id) size=\(Self.diskUsage(for: model)) bytes elapsed=\(elapsed)")
             info.isReady = true
         } catch {
-            NSLog("[TingMo][Whisper] download FAILED id=\(model.id) error=\(error)")
             throw SpeechEngineError.networkError(underlying: error)
         }
     }
@@ -229,19 +220,11 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         loadLock.lock()
         let alreadyLoaded = whisperKit != nil
         loadLock.unlock()
-        if alreadyLoaded {
-            NSLog("[TingMo][Whisper] loadModel skipped — already loaded id=\(model.id)")
-            return
-        }
+        if alreadyLoaded { return }
 
         if !Self.isModelDownloaded(model) {
-            NSLog("[TingMo][Whisper] loadModel triggering implicit download id=\(model.id)")
             try await downloadModel()
         }
-
-        NSLog("[TingMo][Whisper] loadModel start id=\(model.id) folder=\(Self.modelFolder(for: model).path)")
-        let clock = ContinuousClock()
-        let startTime = clock.now
 
         do {
             let config = WhisperKitConfig(
@@ -259,9 +242,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             whisperKit = kit
             loadLock.unlock()
             info.isReady = true
-            NSLog("[TingMo][Whisper] loadModel success id=\(model.id) elapsed=\(clock.now - startTime)")
         } catch {
-            NSLog("[TingMo][Whisper] loadModel FAILED id=\(model.id) error=\(error)")
             throw SpeechEngineError.transcriptionFailed(underlying: error)
         }
     }

@@ -57,29 +57,21 @@ final class DictationPipeline {
     /// - Parameter preferredDeviceUID: Optional input device UID. When nil,
     ///   the system default input is used.
     func start(preferredDeviceUID: String? = nil) throws {
-        guard state == .idle else {
-            NSLog("[TingMo][Pipeline] start aborted — already running (state=\(state))")
-            throw PipelineError.alreadyRunning
-        }
+        guard state == .idle else { throw PipelineError.alreadyRunning }
 
         guard let engine = registry.activeEngine else {
-            NSLog("[TingMo][Pipeline] start aborted — no active engine")
             throw PipelineError.notReady(reason: "No speech engine selected.")
         }
         guard engine.info.isReady else {
-            NSLog("[TingMo][Pipeline] start aborted — engine '\(engine.info.id)' not ready")
             throw PipelineError.notReady(reason: "Model '\(engine.info.name)' not downloaded yet.")
         }
 
         lastError = nil
-        NSLog("[TingMo][Pipeline] start engine=\(engine.info.id) language='\(language)' deviceUID=\(preferredDeviceUID ?? "default")")
 
         do {
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording
-            NSLog("[TingMo][Pipeline] state → recording")
         } catch {
-            NSLog("[TingMo][Pipeline] capture.start FAILED error=\(error)")
             // Normalize any capture failure to a user-facing error.
             let surfaced = PipelineError.deviceUnavailable
             lastError = surfaced
@@ -91,23 +83,17 @@ final class DictationPipeline {
     /// Fire-and-forget: returns immediately; the pipeline moves to transcribing
     /// then back to idle asynchronously.
     func stopAndTranscribe() {
-        guard state == .recording else {
-            NSLog("[TingMo][Pipeline] stopAndTranscribe ignored — state=\(state)")
-            return
-        }
+        guard state == .recording else { return }
 
         let audioURL: URL
         do {
             audioURL = try capture.stop()
         } catch {
-            NSLog("[TingMo][Pipeline] capture.stop FAILED error=\(error)")
             lastError = error
             state = .idle
             return
         }
 
-        let audioSize = (try? audioURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        NSLog("[TingMo][Pipeline] state → transcribing (audio=\(audioURL.lastPathComponent) size=\(audioSize))")
         state = .transcribing
 
         Task { [weak self] in
@@ -120,11 +106,9 @@ final class DictationPipeline {
     func cancel() {
         switch state {
         case .recording:
-            NSLog("[TingMo][Pipeline] cancel — dropping capture, state → idle")
             capture.cancel()
             state = .idle
         case .transcribing, .idle:
-            NSLog("[TingMo][Pipeline] cancel ignored (state=\(state))")
             break
         }
     }
@@ -140,14 +124,9 @@ final class DictationPipeline {
         defer { try? FileManager.default.removeItem(at: audioURL) }
 
         guard let engine = registry.activeEngine else {
-            NSLog("[TingMo][Pipeline] runTranscription aborted — no active engine")
             await finish(error: PipelineError.notReady(reason: "No active engine."))
             return
         }
-
-        NSLog("[TingMo][Pipeline] runTranscription engine=\(engine.info.id) language='\(language)'")
-        let clock = ContinuousClock()
-        let startTime = clock.now
 
         do {
             if engine is WhisperKitEngine {
@@ -168,23 +147,19 @@ final class DictationPipeline {
             // speech; treat it as a surfaced error rather than silent success.
             let normalized = trimmed.replacingOccurrences(of: "[BLANK_AUDIO]", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            NSLog("[TingMo][Pipeline] transcription complete elapsed=\(clock.now - startTime) chars=\(normalized.count)")
             if normalized.isEmpty {
-                NSLog("[TingMo][Pipeline] no speech detected — surfacing .noSpeech")
                 await finish(error: PipelineError.noSpeech)
                 return
             }
             try await TextInjector.shared.inject(normalized)
-            NSLog("[TingMo][Pipeline] inject success")
             await finish(error: nil)
         } catch {
-            NSLog("[TingMo][Pipeline] runTranscription FAILED elapsed=\(clock.now - startTime) error=\(error)")
+            NSLog("[TingMo] transcription error: \(error)")
             await finish(error: error)
         }
     }
 
     private func finish(error: Error?) async {
-        NSLog("[TingMo][Pipeline] state → idle (error=\(error.map { "\($0)" } ?? "none"))")
         lastError = error
         state = .idle
     }

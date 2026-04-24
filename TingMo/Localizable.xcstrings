@@ -1,6 +1,19 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ does not support %@. Pick another engine or language." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ does not support %2$@. Pick another engine or language."
+          }
+        }
+      }
+    },
+    "A model named '%@' is already imported." : {
+
+    },
     "Accessibility" : {
       "localizations" : {
         "zh-Hans" : {
@@ -10,6 +23,12 @@
           }
         }
       }
+    },
+    "Accessibility permission is required to paste. Enable TingMo in System Settings → Privacy & Security → Accessibility." : {
+
+    },
+    "Active" : {
+
     },
     "Add Current App" : {
       "localizations" : {
@@ -21,6 +40,15 @@
         }
       }
     },
+    "API Key" : {
+
+    },
+    "API key is missing. Enter it in Settings." : {
+
+    },
+    "API key saved in the Keychain. Use 'Test Connection' to verify." : {
+
+    },
     "Audio Devices" : {
       "localizations" : {
         "zh-Hans" : {
@@ -30,6 +58,9 @@
           }
         }
       }
+    },
+    "Authentication failed — the API key is invalid." : {
+
     },
     "Back" : {
       "localizations" : {
@@ -41,7 +72,31 @@
         }
       }
     },
+    "Cancel" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Coming Soon" : {
+
+    },
+    "Connection OK" : {
+
+    },
+    "Current endpoint: %@" : {
+
+    },
+    "Custom…" : {
+
+    },
     "Default" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Disk is full. Free up space and try again." : {
 
     },
     "Display Mode" : {
@@ -57,6 +112,24 @@
     "Download" : {
 
     },
+    "Download cancelled." : {
+
+    },
+    "Download Source" : {
+
+    },
+    "Download timed out." : {
+
+    },
+    "Drop a WhisperKit model folder here" : {
+
+    },
+    "Drop or import a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc." : {
+
+    },
+    "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits." : {
+
+    },
     "Embed in the camera notch area" : {
       "localizations" : {
         "zh-Hans" : {
@@ -67,6 +140,15 @@
         }
       }
     },
+    "Endpoint URL" : {
+
+    },
+    "Engine" : {
+
+    },
+    "Enter an API key to enable this engine." : {
+
+    },
     "Excluded Apps" : {
       "localizations" : {
         "zh-Hans" : {
@@ -76,6 +158,12 @@
           }
         }
       }
+    },
+    "Failed" : {
+
+    },
+    "Failed to copy model: %@" : {
+
     },
     "Floating Window" : {
       "localizations" : {
@@ -157,10 +245,46 @@
         }
       }
     },
+    "https://example.com" : {
+
+    },
     "Idle" : {
 
     },
+    "Import Model Folder…" : {
+
+    },
+    "Imported" : {
+
+    },
+    "Imported Models" : {
+
+    },
+    "Incompatible" : {
+
+    },
+    "Incompatible with %@" : {
+
+    },
     "Input: %@" : {
+
+    },
+    "Installed" : {
+
+    },
+    "Invalid model: required bundle '%@' is missing." : {
+
+    },
+    "Language" : {
+
+    },
+    "Loading…" : {
+
+    },
+    "Local" : {
+
+    },
+    "Local Engines" : {
 
     },
     "Microphone" : {
@@ -174,6 +298,18 @@
       }
     },
     "Microphone disconnected." : {
+
+    },
+    "Missing API key" : {
+
+    },
+    "Missing API Key" : {
+
+    },
+    "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk." : {
+
+    },
+    "Network error: %@" : {
 
     },
     "Next" : {
@@ -206,6 +342,9 @@
         }
       }
     },
+    "No internet connection." : {
+
+    },
     "No notch detected — will use Top Center mode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -226,6 +365,18 @@
           }
         }
       }
+    },
+    "No remote engine configured. Add an API key below." : {
+
+    },
+    "Not downloaded" : {
+
+    },
+    "Not Downloaded" : {
+
+    },
+    "Not installed" : {
+
     },
     "Notch" : {
       "localizations" : {
@@ -286,6 +437,9 @@
           }
         }
       }
+    },
+    "Parakeet (English) — Coming Soon" : {
+
     },
     "Permissions" : {
       "localizations" : {
@@ -358,6 +512,12 @@
         }
       }
     },
+    "Rate limit exceeded." : {
+
+    },
+    "Rate limit exceeded. Retry after %llds." : {
+
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -371,6 +531,15 @@
     "Recording…" : {
 
     },
+    "Remote" : {
+
+    },
+    "Remote Engines" : {
+
+    },
+    "Remove" : {
+
+    },
     "Remove historical device" : {
       "localizations" : {
         "zh-Hans" : {
@@ -380,6 +549,12 @@
           }
         }
       }
+    },
+    "Request cancelled." : {
+
+    },
+    "Request timed out." : {
+
     },
     "Required for reading screen context and text injection" : {
       "localizations" : {
@@ -412,6 +587,9 @@
         }
       }
     },
+    "Retry" : {
+
+    },
     "Run Setup Wizard Again" : {
       "localizations" : {
         "zh-Hans" : {
@@ -422,6 +600,9 @@
         }
       }
     },
+    "Save" : {
+
+    },
     "Screen Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -431,6 +612,9 @@
           }
         }
       }
+    },
+    "Server returned an error (%lld)." : {
+
     },
     "Settings" : {
       "localizations" : {
@@ -539,6 +723,9 @@
     "System Default" : {
 
     },
+    "Test Connection" : {
+
+    },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {
         "zh-Hans" : {
@@ -548,6 +735,9 @@
           }
         }
       }
+    },
+    "The selected item is not a valid WhisperKit model folder." : {
+
     },
     "TingMo 听墨" : {
       "localizations" : {
@@ -569,7 +759,19 @@
         }
       }
     },
+    "Total disk usage" : {
+
+    },
     "Transcribing…" : {
+
+    },
+    "Unavailable" : {
+
+    },
+    "Unexpected response from the server." : {
+
+    },
+    "Use" : {
 
     },
     "Welcome to TingMo" : {
@@ -581,6 +783,9 @@
           }
         }
       }
+    },
+    "WhisperKit Models" : {
+
     },
     "Will be configured in a future update" : {
       "localizations" : {

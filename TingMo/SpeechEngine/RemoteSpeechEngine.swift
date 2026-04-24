@@ -146,38 +146,28 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// after the user adds/removes an API key so UI picks up the change.
     func refreshReadiness() {
         let keyPresent = (KeychainStore.get(service: config.keychainService) ?? "").isEmpty == false
-        NSLog("[TingMo][Remote:\(config.id)] refreshReadiness keyPresent=\(keyPresent)")
         info.isReady = keyPresent
     }
 
     func transcribe(audioURL: URL, language: String) async throws -> AsyncStream<TranscriptionResult> {
         guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
-            NSLog("[TingMo][Remote:\(config.id)] transcribe aborted — missing API key")
             throw RemoteEngineError.missingAPIKey
         }
         if !language.isEmpty, !supportsLanguage(language) {
-            NSLog("[TingMo][Remote:\(config.id)] transcribe aborted — unsupported language '\(language)'")
             throw SpeechEngineError.unsupportedLanguage(language)
         }
 
         retainedAudioURL = audioURL
         lastError = nil
 
-        let audioSize = (try? audioURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        NSLog("[TingMo][Remote:\(config.id)] transcribe start endpoint=\(config.endpoint) language='\(language)' audioSize=\(audioSize)")
-        let clock = ContinuousClock()
-        let startTime = clock.now
-
         do {
             let text = try await sendTranscription(audioURL: audioURL, language: language, apiKey: apiKey)
             retainedAudioURL = nil
-            NSLog("[TingMo][Remote:\(config.id)] transcribe success elapsed=\(clock.now - startTime) chars=\(text.count)")
             return AsyncStream { continuation in
                 continuation.yield(.final(text))
                 continuation.finish()
             }
         } catch {
-            NSLog("[TingMo][Remote:\(config.id)] transcribe FAILED elapsed=\(clock.now - startTime) error=\(error)")
             lastError = error
             throw error
         }
@@ -187,11 +177,9 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// success, or a `RemoteEngineError` describing the failure.
     func runConnectivityCheck() async -> RemoteEngineError? {
         guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
-            NSLog("[TingMo][Remote:\(config.id)] health check aborted — missing API key")
             return .missingAPIKey
         }
         guard let mode = config.healthcheckMode else {
-            NSLog("[TingMo][Remote:\(config.id)] health check skipped — no mode configured")
             return nil
         }
 
@@ -205,7 +193,6 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
 
     private func runGETHealthcheck(urlString: String, apiKey: String) async -> RemoteEngineError? {
         guard let url = URL(string: urlString) else { return .invalidResponse }
-        NSLog("[TingMo][Remote:\(config.id)] health check (GET) url=\(urlString)")
 
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
@@ -214,13 +201,9 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let result = Self.classifyStatus(status, body: nil)
-            NSLog("[TingMo][Remote:\(config.id)] health check done status=\(status) result=\(result.map { "\($0)" } ?? "OK")")
-            return result
+            return Self.classifyStatus(status, body: nil)
         } catch {
-            let classified = Self.classifyURLError(error)
-            NSLog("[TingMo][Remote:\(config.id)] health check FAILED error=\(error) classified=\(classified)")
-            return classified
+            return Self.classifyURLError(error)
         }
     }
 
@@ -229,8 +212,6 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// worst and returns an empty transcription on success. Any 4xx other
     /// than the quota-style 402/429 implies a bad key.
     private func runSTTHealthcheck(apiKey: String) async -> RemoteEngineError? {
-        NSLog("[TingMo][Remote:\(config.id)] health check (STT) endpoint=\(config.endpoint)")
-
         let wav = Self.silentWAV()
         let boundary = UUID().uuidString
         guard let url = URL(string: config.endpoint) else { return .invalidResponse }
