@@ -82,6 +82,45 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         }
     }
 
+    /// Size of the model folder on disk in bytes (0 if missing).
+    /// Useful for the settings panel's "disk usage" column.
+    static func diskUsage(for model: WhisperModel) -> Int64 {
+        let folder = modelFolder(for: model)
+        guard let enumerator = FileManager.default.enumerator(
+            at: folder,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: [.fileSizeKey])
+            total += Int64(values?.fileSize ?? 0)
+        }
+        return total
+    }
+
+    /// Remove the on-disk model folder and reset `isReady`. Returns true on
+    /// success. The engine instance stays registered; the user can redownload.
+    @discardableResult
+    func deleteLocalFiles() -> Bool {
+        let folder = Self.modelFolder(for: model)
+        guard FileManager.default.fileExists(atPath: folder.path) else {
+            info.isReady = false
+            return true
+        }
+        do {
+            try FileManager.default.removeItem(at: folder)
+            loadLock.lock()
+            whisperKit = nil
+            loadLock.unlock()
+            info.isReady = false
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - Download & load
 
     /// Download the model variant into our managed folder.

@@ -129,8 +129,8 @@ final class DictationPipeline {
         }
 
         do {
-            if let whisper = engine as? WhisperKitEngine {
-                try await whisper.loadModel()
+            if engine is WhisperKitEngine {
+                try await registry.loadActiveEngine()
             }
 
             let stream = try await engine.transcribe(audioURL: audioURL, language: language)

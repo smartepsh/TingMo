@@ -20,9 +20,27 @@ final class EngineRegistry {
     /// Download progress for models (engine ID → progress 0.0–1.0).
     var downloadProgress: [String: Double] = [:]
 
+    /// Last download failure per engine (surfaced to UI). Cleared on retry.
+    var downloadErrors: [String: String] = [:]
+
+    /// Engine IDs currently running `loadModel()` (for a "loading…" UI hint).
+    /// Large variants take several seconds to compile CoreML; without this
+    /// the user has no feedback that anything is happening.
+    var loadingEngineIDs: Set<String> = []
+
     /// Whether a download is in progress.
     var isDownloading: Bool {
         !downloadProgress.isEmpty
+    }
+
+    /// True if the engine is currently loading its CoreML model.
+    func isLoading(_ engineID: String) -> Bool {
+        loadingEngineIDs.contains(engineID)
+    }
+
+    /// Most recent download failure for the engine, if any.
+    func downloadError(for engineID: String) -> String? {
+        downloadErrors[engineID]
     }
 
     init() {
@@ -62,9 +80,25 @@ final class EngineRegistry {
     func preloadActiveEngine() {
         guard let whisper = activeEngine as? WhisperKitEngine else { return }
         guard whisper.info.isReady else { return }
-        Task.detached {
+        let id = whisper.info.id
+        loadingEngineIDs.insert(id)
+        Task.detached { [weak self] in
             try? await whisper.loadModel()
+            await MainActor.run { [weak self] in
+                _ = self?.loadingEngineIDs.remove(id)
+            }
         }
+    }
+
+    /// Load the active engine synchronously for the pipeline. Updates the
+    /// `loadingEngineIDs` hint around the call so UI can show a "loading"
+    /// badge during first-use compile/prewarm.
+    func loadActiveEngine() async throws {
+        guard let whisper = activeEngine as? WhisperKitEngine else { return }
+        let id = whisper.info.id
+        loadingEngineIDs.insert(id)
+        defer { loadingEngineIDs.remove(id) }
+        try await whisper.loadModel()
     }
 
     // MARK: - Language Compatibility
@@ -91,6 +125,7 @@ final class EngineRegistry {
         if whisper.info.isReady { return }
 
         downloadProgress[engineID] = 0
+        downloadErrors[engineID] = nil
 
         Task { [weak self] in
             defer {
@@ -110,9 +145,46 @@ final class EngineRegistry {
                     }
                 }
             } catch {
-                NSLog("[TingMo] model download failed for \(engineID): \(error)")
+                await MainActor.run { [weak self] in
+                    self?.downloadErrors[engineID] = Self.describeDownloadError(error)
+                }
             }
         }
+    }
+
+    /// Cancel / clear a failed download so the user can retry.
+    func clearDownloadError(for engineID: String) {
+        downloadErrors[engineID] = nil
+    }
+
+    /// Removes the on-disk model folder for a downloaded WhisperKit variant
+    /// and refreshes the engine's `isReady` flag.
+    @discardableResult
+    func deleteDownloadedModel(engineID: String) -> Bool {
+        guard let engine = engines.first(where: { $0.info.id == engineID }) as? WhisperKitEngine else {
+            return false
+        }
+        return engine.deleteLocalFiles()
+    }
+
+    private static func describeDownloadError(_ error: Error) -> String {
+        let ns = error as NSError
+        if ns.domain == NSPOSIXErrorDomain, ns.code == 28 {
+            return String(localized: "Disk is full. Free up space and try again.")
+        }
+        if ns.domain == NSURLErrorDomain {
+            switch ns.code {
+            case NSURLErrorNotConnectedToInternet:
+                return String(localized: "No internet connection.")
+            case NSURLErrorTimedOut:
+                return String(localized: "Download timed out.")
+            case NSURLErrorCancelled:
+                return String(localized: "Download cancelled.")
+            default:
+                break
+            }
+        }
+        return error.localizedDescription
     }
 
     /// True if the given engine has an active download.

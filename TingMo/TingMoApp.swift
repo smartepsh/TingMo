@@ -243,10 +243,18 @@ struct TingMoApp: App {
         let isActive = engineRegistry.activeEngineID == engineID
         let downloaded = WhisperKitEngine.isModelDownloaded(model)
         let progress = engineRegistry.progress(for: engineID)
+        let loading = engineRegistry.isLoading(engineID)
+        let error = engineRegistry.downloadError(for: engineID)
 
         let title: String = {
+            if let err = error {
+                return "\(model.name) — \(String(localized: "Failed")): \(err)"
+            }
             if let p = progress {
                 return "\(model.name) — \(Int(p * 100))%"
+            }
+            if loading {
+                return "\(model.name) — \(String(localized: "Loading…"))"
             }
             if isActive { return "✓ \(model.name) (\(model.size))" }
             if downloaded { return "\(model.name) (\(model.size))" }
@@ -254,13 +262,16 @@ struct TingMoApp: App {
         }()
 
         Button(title) {
-            if downloaded {
+            if error != nil {
+                engineRegistry.clearDownloadError(for: engineID)
+                engineRegistry.downloadModel(engineID: engineID)
+            } else if downloaded {
                 engineRegistry.setActiveEngine(engineID)
             } else {
                 engineRegistry.downloadModel(engineID: engineID)
             }
         }
-        .disabled(progress != nil || isActive)
+        .disabled(progress != nil || loading || isActive)
     }
 
     // MARK: - Model prefetch (M1 hotest convenience)
