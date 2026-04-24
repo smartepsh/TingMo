@@ -89,22 +89,55 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         }
     }
 
+    /// Cache of previously-computed folder sizes keyed by model.id.
+    /// SwiftUI redraws the settings form on every observable change (e.g.
+    /// after saving an API key), which was triggering a full recursive file
+    /// enumeration per model on every keystroke — noticeably blocking the
+    /// main thread once medium/large variants were on disk. We invalidate
+    /// this cache only when we actually change the folder contents
+    /// (download completion, delete).
+    private static var diskUsageCache: [String: Int64] = [:]
+    private static let diskUsageCacheLock = NSLock()
+
     /// Size of the model folder on disk in bytes (0 if missing).
-    /// Useful for the settings panel's "disk usage" column.
+    /// Cached; call `invalidateDiskUsage(for:)` after a download or delete.
     static func diskUsage(for model: WhisperModel) -> Int64 {
+        diskUsageCacheLock.lock()
+        if let cached = diskUsageCache[model.id] {
+            diskUsageCacheLock.unlock()
+            return cached
+        }
+        diskUsageCacheLock.unlock()
+
         let folder = modelFolder(for: model)
         guard let enumerator = FileManager.default.enumerator(
             at: folder,
             includingPropertiesForKeys: [.fileSizeKey],
             options: [.skipsHiddenFiles]
-        ) else { return 0 }
+        ) else {
+            diskUsageCacheLock.lock()
+            diskUsageCache[model.id] = 0
+            diskUsageCacheLock.unlock()
+            return 0
+        }
 
         var total: Int64 = 0
         for case let url as URL in enumerator {
             let values = try? url.resourceValues(forKeys: [.fileSizeKey])
             total += Int64(values?.fileSize ?? 0)
         }
+        diskUsageCacheLock.lock()
+        diskUsageCache[model.id] = total
+        diskUsageCacheLock.unlock()
         return total
+    }
+
+    /// Drop the cached disk-usage entry for a model. Call after download
+    /// completion or deletion so the next UI read re-enumerates.
+    static func invalidateDiskUsage(for model: WhisperModel) {
+        diskUsageCacheLock.lock()
+        diskUsageCache.removeValue(forKey: model.id)
+        diskUsageCacheLock.unlock()
     }
 
     /// Remove the on-disk model folder and reset `isReady`. Returns true on
@@ -114,6 +147,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         let folder = Self.modelFolder(for: model)
         guard FileManager.default.fileExists(atPath: folder.path) else {
             info.isReady = false
+            Self.invalidateDiskUsage(for: model)
             return true
         }
         do {
@@ -122,6 +156,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             whisperKit = nil
             loadLock.unlock()
             info.isReady = false
+            Self.invalidateDiskUsage(for: model)
             return true
         } catch {
             return false
@@ -178,6 +213,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
                     progress?(p.fractionCompleted)
                 }
             }
+            Self.invalidateDiskUsage(for: model)
             let elapsed = clock.now - startTime
             NSLog("[TingMo][Whisper] download success id=\(model.id) size=\(Self.diskUsage(for: model)) bytes elapsed=\(elapsed)")
             info.isReady = true

@@ -54,7 +54,13 @@ struct RemoteEngineConfig: Sendable {
             "en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "nl",
             "pl", "ru", "tr", "ar", "hi",
         ],
-        healthcheckEndpoint: "https://api.elevenlabs.io/v1/models",
+        // Using `/v1/voices` rather than `/v1/user` or `/v1/models`: those
+        // two require an API key with `user_read` / `models_read` scopes,
+        // which STT-only keys don't have. `/v1/voices` is reachable with any
+        // valid ElevenLabs key (and still rejects obviously-bad ones with
+        // 401), so it gives us a real auth check without demanding extra
+        // scopes from the user's key.
+        healthcheckEndpoint: "https://api.elevenlabs.io/v1/voices",
         billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
     )
 }
