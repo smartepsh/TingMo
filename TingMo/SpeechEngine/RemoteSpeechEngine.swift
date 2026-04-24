@@ -22,8 +22,18 @@ struct RemoteEngineConfig: Sendable {
     var keychainService: String
     var authStyle: RemoteAuthStyle
     var supportedLanguages: [String]
-    /// Short URL to hit for a cheap connectivity / auth check. GET request.
-    var healthcheckEndpoint: String?
+    /// How the connectivity-check endpoint is exercised.
+    /// * `.get(url)` — simple GET with the auth header; any 2xx = success.
+    ///   Works for providers that expose a scoped-agnostic read endpoint.
+    /// * `.postSTT` — send a tiny silent WAV to the real `endpoint`. This is
+    ///   the only path that works for providers (ElevenLabs) where every
+    ///   read endpoint requires a scope that STT-only keys don't have.
+    var healthcheckMode: HealthcheckMode?
+
+    enum HealthcheckMode: Sendable {
+        case get(url: String)
+        case postSTT
+    }
     /// Optional footer shown under the settings section (billing blurb, etc.).
     var billingNote: String?
 
@@ -37,7 +47,7 @@ struct RemoteEngineConfig: Sendable {
         keychainService: "tingmo.groq",
         authStyle: .bearer,
         supportedLanguages: ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "ru", "it"],
-        healthcheckEndpoint: "https://api.groq.com/openai/v1/models",
+        healthcheckMode: .get(url: "https://api.groq.com/openai/v1/models"),
         billingNote: nil
     )
 
@@ -54,13 +64,12 @@ struct RemoteEngineConfig: Sendable {
             "en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "nl",
             "pl", "ru", "tr", "ar", "hi",
         ],
-        // Using `/v1/voices` rather than `/v1/user` or `/v1/models`: those
-        // two require an API key with `user_read` / `models_read` scopes,
-        // which STT-only keys don't have. `/v1/voices` is reachable with any
-        // valid ElevenLabs key (and still rejects obviously-bad ones with
-        // 401), so it gives us a real auth check without demanding extra
-        // scopes from the user's key.
-        healthcheckEndpoint: "https://api.elevenlabs.io/v1/voices",
+        // ElevenLabs gates every GET endpoint behind a scope (user_read,
+        // models_read, voices_read) that STT-only keys don't have. The
+        // only way to verify a STT key is legitimate is to exercise the
+        // STT endpoint itself with a tiny silent WAV — that's what
+        // `.postSTT` does.
+        healthcheckMode: .postSTT,
         billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
     )
 }
@@ -181,21 +190,26 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
             NSLog("[TingMo][Remote:\(config.id)] health check aborted — missing API key")
             return .missingAPIKey
         }
-        guard let urlString = config.healthcheckEndpoint, let url = URL(string: urlString) else {
-            NSLog("[TingMo][Remote:\(config.id)] health check skipped — no healthcheck endpoint")
+        guard let mode = config.healthcheckMode else {
+            NSLog("[TingMo][Remote:\(config.id)] health check skipped — no mode configured")
             return nil
         }
 
-        NSLog("[TingMo][Remote:\(config.id)] health check start url=\(urlString)")
+        switch mode {
+        case .get(let urlString):
+            return await runGETHealthcheck(urlString: urlString, apiKey: apiKey)
+        case .postSTT:
+            return await runSTTHealthcheck(apiKey: apiKey)
+        }
+    }
+
+    private func runGETHealthcheck(urlString: String, apiKey: String) async -> RemoteEngineError? {
+        guard let url = URL(string: urlString) else { return .invalidResponse }
+        NSLog("[TingMo][Remote:\(config.id)] health check (GET) url=\(urlString)")
 
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
-        switch config.authStyle {
-        case .bearer:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        case .xiAPIKey:
-            request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
-        }
+        applyAuth(to: &request, apiKey: apiKey)
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -208,6 +222,88 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
             NSLog("[TingMo][Remote:\(config.id)] health check FAILED error=\(error) classified=\(classified)")
             return classified
         }
+    }
+
+    /// Hit the real STT endpoint with a tiny silent WAV. The audio is
+    /// ~0.2s of silence, so the provider charges fractions of a cent at
+    /// worst and returns an empty transcription on success. Any 4xx other
+    /// than the quota-style 402/429 implies a bad key.
+    private func runSTTHealthcheck(apiKey: String) async -> RemoteEngineError? {
+        NSLog("[TingMo][Remote:\(config.id)] health check (STT) endpoint=\(config.endpoint)")
+
+        let wav = Self.silentWAV()
+        let boundary = UUID().uuidString
+        guard let url = URL(string: config.endpoint) else { return .invalidResponse }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        applyAuth(to: &request, apiKey: apiKey)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        appendField(&body, boundary: boundary, name: "file", filename: "probe.wav", contentType: "audio/wav", data: wav)
+        if let model = config.modelValue {
+            appendTextField(&body, boundary: boundary, name: config.modelFieldName, value: model)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let result = Self.classifyStatus(status, body: data)
+            NSLog("[TingMo][Remote:\(config.id)] health check done status=\(status) result=\(result.map { "\($0)" } ?? "OK")")
+            return result
+        } catch {
+            let classified = Self.classifyURLError(error)
+            NSLog("[TingMo][Remote:\(config.id)] health check FAILED error=\(error) classified=\(classified)")
+            return classified
+        }
+    }
+
+    private func applyAuth(to request: inout URLRequest, apiKey: String) {
+        switch config.authStyle {
+        case .bearer:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        case .xiAPIKey:
+            request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+        }
+    }
+
+    /// 16 kHz mono PCM WAV containing ~0.2 seconds of silence. Used by the
+    /// STT-based health check so we don't have to ship an audio asset.
+    private static func silentWAV() -> Data {
+        let sampleRate: UInt32 = 16000
+        let sampleCount: UInt32 = 3200 // 0.2s
+        let byteRate = sampleRate * 2
+        let subchunk2Size = sampleCount * 2
+        let chunkSize = 36 + subchunk2Size
+
+        var data = Data()
+        data.append("RIFF".data(using: .ascii)!)
+        data.append(Self.littleEndian(chunkSize))
+        data.append("WAVE".data(using: .ascii)!)
+        data.append("fmt ".data(using: .ascii)!)
+        data.append(Self.littleEndian(UInt32(16)))           // PCM subchunk size
+        data.append(Self.littleEndian(UInt16(1)))            // PCM format
+        data.append(Self.littleEndian(UInt16(1)))            // mono
+        data.append(Self.littleEndian(sampleRate))
+        data.append(Self.littleEndian(byteRate))
+        data.append(Self.littleEndian(UInt16(2)))            // block align
+        data.append(Self.littleEndian(UInt16(16)))           // bits/sample
+        data.append("data".data(using: .ascii)!)
+        data.append(Self.littleEndian(subchunk2Size))
+        data.append(Data(count: Int(subchunk2Size)))         // zeros
+        return data
+    }
+
+    private static func littleEndian(_ value: UInt32) -> Data {
+        var v = value.littleEndian
+        return Data(bytes: &v, count: 4)
+    }
+
+    private static func littleEndian(_ value: UInt16) -> Data {
+        var v = value.littleEndian
+        return Data(bytes: &v, count: 2)
     }
 
     // MARK: - API Communication
