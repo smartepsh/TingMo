@@ -1,37 +1,61 @@
 import Foundation
 
+/// How a provider authenticates requests. Groq-style uses the OpenAI
+/// `Authorization: Bearer`; ElevenLabs wants an `xi-api-key` header.
+enum RemoteAuthStyle: Sendable {
+    case bearer
+    case xiAPIKey
+}
+
 /// Static description of a remote STT provider.
 /// Runtime secrets (API key) are fetched from Keychain via `keychainService`.
 struct RemoteEngineConfig: Sendable {
     var id: String
     var name: String
     var endpoint: String
-    var modelField: String?
-    /// Keychain service identifier used to fetch the API key.
+    /// Multipart field name that carries the model selector (e.g. "model" for
+    /// OpenAI-compatible, "model_id" for ElevenLabs). Value is `modelValue`.
+    var modelFieldName: String
+    var modelValue: String?
+    /// Multipart field name for the language hint.
+    var languageFieldName: String
     var keychainService: String
-    /// Static capability description; does not depend on whether a key is set.
+    var authStyle: RemoteAuthStyle
     var supportedLanguages: [String]
     /// Short URL to hit for a cheap connectivity / auth check. GET request.
     var healthcheckEndpoint: String?
+    /// Optional footer shown under the settings section (billing blurb, etc.).
+    var billingNote: String?
 
     static let groq = RemoteEngineConfig(
         id: "groq-whisper",
         name: "Groq (Whisper)",
         endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
-        modelField: "whisper-large-v3",
+        modelFieldName: "model",
+        modelValue: "whisper-large-v3",
+        languageFieldName: "language",
         keychainService: "tingmo.groq",
+        authStyle: .bearer,
         supportedLanguages: ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "ru", "it"],
-        healthcheckEndpoint: "https://api.groq.com/openai/v1/models"
+        healthcheckEndpoint: "https://api.groq.com/openai/v1/models",
+        billingNote: nil
     )
 
     static let elevenlabs = RemoteEngineConfig(
         id: "elevenlabs",
-        name: "ElevenLabs",
+        name: "ElevenLabs (Scribe)",
         endpoint: "https://api.elevenlabs.io/v1/speech-to-text",
-        modelField: "scribe_v1",
+        modelFieldName: "model_id",
+        modelValue: "scribe_v1",
+        languageFieldName: "language_code",
         keychainService: "tingmo.elevenlabs",
-        supportedLanguages: ["en", "zh", "ja", "ko", "de", "fr", "es"],
-        healthcheckEndpoint: "https://api.elevenlabs.io/v1/user"
+        authStyle: .xiAPIKey,
+        supportedLanguages: [
+            "en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "nl",
+            "pl", "ru", "tr", "ar", "hi",
+        ],
+        healthcheckEndpoint: "https://api.elevenlabs.io/v1/user",
+        billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
     )
 }
 
@@ -146,8 +170,12 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
 
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("xi-api-key: \(apiKey)", forHTTPHeaderField: "xi-api-key")
+        switch config.authStyle {
+        case .bearer:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        case .xiAPIKey:
+            request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+        }
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -174,19 +202,21 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
 
         var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        // ElevenLabs uses `xi-api-key`; adding it unconditionally is harmless
-        // for providers that don't read it.
-        request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+        switch config.authStyle {
+        case .bearer:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        case .xiAPIKey:
+            request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+        }
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         var body = Data()
         appendField(&body, boundary: boundary, name: "file", filename: "audio.wav", contentType: "audio/wav", data: audioData)
-        if let model = config.modelField {
-            appendTextField(&body, boundary: boundary, name: "model", value: model)
+        if let model = config.modelValue {
+            appendTextField(&body, boundary: boundary, name: config.modelFieldName, value: model)
         }
         if !language.isEmpty {
-            appendTextField(&body, boundary: boundary, name: "language", value: language)
+            appendTextField(&body, boundary: boundary, name: config.languageFieldName, value: language)
         }
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body

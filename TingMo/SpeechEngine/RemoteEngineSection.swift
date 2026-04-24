@@ -63,9 +63,16 @@ struct RemoteEngineSection: View {
         } header: {
             Text(engine.config.name)
         } footer: {
-            Text(statusFooter)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(statusFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let note = engine.config.billingNote {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .onAppear(perform: loadExistingKey)
     }
