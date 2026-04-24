@@ -77,34 +77,8 @@ struct AnthropicLLMProvider: LLMProvider {
     }
 
     private func makeMessages(for request: LLMCorrectionRequest) -> [Message] {
-        let context = renderContext(request.nonSensitiveContext)
-        let content: String
-        if context.isEmpty {
-            content = """
-Correct this transcript. Return only the corrected transcript.
-
-Transcript:
-\(request.trimmedTranscript)
-"""
-        } else {
-            content = """
-Use this context only when it helps correct the transcript:
-\(context)
-
-Correct this transcript. Return only the corrected transcript.
-
-Transcript:
-\(request.trimmedTranscript)
-"""
-        }
+        let content = LLMCorrectionPrompt.userMessage(for: request)
         return [Message(role: "user", content: [ContentBlock(type: "text", text: content)])]
-    }
-
-    private func renderContext(_ items: [LLMContextItem]) -> String {
-        guard !items.isEmpty else { return "" }
-        return items.map { item in
-            "- \(item.kind.rawValue): \(item.text.trimmingCharacters(in: .whitespacesAndNewlines))"
-        }.joined(separator: "\n")
     }
 
     private static func classifyStatus(_ status: Int, data: Data, response: URLResponse) -> LLMProviderError? {

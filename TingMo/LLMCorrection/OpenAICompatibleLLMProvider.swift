@@ -75,33 +75,10 @@ struct OpenAICompatibleLLMProvider: LLMProvider {
     }
 
     private func makeMessages(for request: LLMCorrectionRequest) -> [ChatMessage] {
-        var messages = [
+        [
             ChatMessage(role: "system", content: request.config.effectiveSystemPrompt),
+            ChatMessage(role: "user", content: LLMCorrectionPrompt.userMessage(for: request)),
         ]
-
-        let context = renderContext(request.nonSensitiveContext)
-        if !context.isEmpty {
-            messages.append(ChatMessage(role: "user", content: context))
-        }
-
-        messages.append(ChatMessage(role: "user", content: """
-Correct this transcript. Return only the corrected transcript.
-
-Transcript:
-\(request.trimmedTranscript)
-"""))
-        return messages
-    }
-
-    private func renderContext(_ items: [LLMContextItem]) -> String {
-        guard !items.isEmpty else { return "" }
-        let lines = items.map { item in
-            "- \(item.kind.rawValue): \(item.text.trimmingCharacters(in: .whitespacesAndNewlines))"
-        }
-        return """
-Use this context only when it helps correct the transcript:
-\(lines.joined(separator: "\n"))
-"""
     }
 
     private static func classifyStatus(_ status: Int, data: Data, response: URLResponse) -> LLMProviderError? {

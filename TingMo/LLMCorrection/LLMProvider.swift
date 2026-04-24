@@ -193,6 +193,37 @@ struct LLMCorrectionResponse: Equatable, Sendable {
     var usage: LLMUsage?
 }
 
+enum LLMCorrectionPrompt {
+    static func userMessage(for request: LLMCorrectionRequest) -> String {
+        let context = contextBlock(for: request.nonSensitiveContext)
+        if context.isEmpty {
+            return """
+Correct this transcript. Return only the corrected transcript.
+
+Transcript:
+\(request.trimmedTranscript)
+"""
+        }
+
+        return """
+Use this context only when it helps correct the transcript:
+\(context)
+
+Correct this transcript. Return only the corrected transcript.
+
+Transcript:
+\(request.trimmedTranscript)
+"""
+    }
+
+    private static func contextBlock(for items: [LLMContextItem]) -> String {
+        guard !items.isEmpty else { return "" }
+        return items.map { item in
+            "- \(item.kind.rawValue): \(item.text.trimmingCharacters(in: .whitespacesAndNewlines))"
+        }.joined(separator: "\n")
+    }
+}
+
 /// Unified correction adapter protocol. Concrete network adapters arrive in
 /// M3-2 and M3-3; this protocol is the contract the pipeline will use.
 protocol LLMProvider: Sendable {
