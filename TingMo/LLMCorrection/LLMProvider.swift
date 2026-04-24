@@ -120,6 +120,11 @@ struct LLMConfig: Codable, Equatable, Sendable {
         min(max(temperature, 0), 2)
     }
 
+    var usesLocalEndpoint: Bool {
+        guard let host = URL(string: effectiveEndpoint)?.host?.lowercased() else { return false }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
     static let defaultSystemPrompt = """
 You correct speech-to-text transcripts. Preserve the user's meaning, language, tone, and formatting intent. Fix recognition mistakes, punctuation, casing, and obvious homophones. Return only the corrected transcript.
 """
@@ -200,13 +205,21 @@ protocol LLMProvider: Sendable {
 extension LLMProvider {
     func validate(_ config: LLMConfig) throws {
         guard config.enabled else { throw LLMProviderError.disabled }
-        guard URL(string: config.effectiveEndpoint) != nil else { throw LLMProviderError.invalidEndpoint(config.effectiveEndpoint) }
+        guard config.provider == providerID else { throw LLMProviderError.unsupportedProvider(config.provider) }
+        guard let url = URL(string: config.effectiveEndpoint),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host?.isEmpty == false
+        else {
+            throw LLMProviderError.invalidEndpoint(config.effectiveEndpoint)
+        }
         guard !config.effectiveModel.isEmpty else { throw LLMProviderError.missingModel }
     }
 }
 
 enum LLMProviderError: LocalizedError {
     case disabled
+    case unsupportedProvider(LLMProviderID)
     case emptyTranscript
     case missingAPIKey
     case missingModel
@@ -224,6 +237,8 @@ enum LLMProviderError: LocalizedError {
         switch self {
         case .disabled:
             "LLM correction is disabled."
+        case .unsupportedProvider(let provider):
+            "Unsupported LLM provider: \(provider.displayName)."
         case .emptyTranscript:
             "Transcript is empty."
         case .missingAPIKey:
