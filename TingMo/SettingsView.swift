@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var languagePreference: LanguagePreference
     @Bindable var downloadSource: DownloadSourcePreference
+    @Bindable var importedModelStore: ImportedModelStore
 
     @Environment(\.openWindow) private var openWindow
 
@@ -21,6 +22,11 @@ struct SettingsView: View {
             ModelDownloadView(
                 engineRegistry: engineRegistry,
                 downloadSource: downloadSource
+            )
+
+            ImportedModelSection(
+                engineRegistry: engineRegistry,
+                importedModelStore: importedModelStore
             )
 
             Section {

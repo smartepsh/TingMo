@@ -35,6 +35,10 @@ final class EngineRegistry {
     /// Injected so the registry can honour the user's mirror choice.
     private let downloadSource: DownloadSourcePreference
 
+    /// Tracks user-imported WhisperKit models so they show up alongside the
+    /// built-in variants after a restart.
+    private let importedModelStore: ImportedModelStore
+
     /// Whether a download is in progress.
     var isDownloading: Bool {
         !downloadProgress.isEmpty
@@ -50,11 +54,16 @@ final class EngineRegistry {
         downloadErrors[engineID]
     }
 
-    init(downloadSource: DownloadSourcePreference) {
+    init(
+        downloadSource: DownloadSourcePreference,
+        importedModelStore: ImportedModelStore
+    ) {
         self.downloadSource = downloadSource
+        self.importedModelStore = importedModelStore
         let defaultID = WhisperKitEngine.defaultModelEngineID
         activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
+        registerImportedModels()
         preloadActiveEngine()
     }
 
@@ -72,6 +81,30 @@ final class EngineRegistry {
 
         // Parakeet — English-only, CoreML
         register(ParakeetEngine(isReady: false))
+    }
+
+    private func registerImportedModels() {
+        for imported in importedModelStore.models {
+            let model = WhisperKitEngine.WhisperModel(
+                id: "imported-\(imported.id)",
+                variant: imported.id,
+                name: imported.displayName,
+                size: String(localized: "Imported"),
+                importedFolder: imported.folderURL
+            )
+            register(WhisperKitEngine(model: model))
+        }
+    }
+
+    /// Drop any currently-registered imported engines and re-register from
+    /// the store. Called after a successful import or delete so the UI
+    /// reflects changes without restarting the app.
+    func refreshImportedEngines() {
+        engines.removeAll {
+            guard let whisper = $0 as? WhisperKitEngine else { return false }
+            return whisper.model.isImported
+        }
+        registerImportedModels()
     }
 
     // MARK: - Engine Selection

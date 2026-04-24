@@ -39,6 +39,11 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         let variant: String
         let name: String
         let size: String
+        /// When non-nil, the model was user-imported and lives at this
+        /// absolute folder instead of under the managed argmaxinc tree.
+        var importedFolder: URL?
+
+        var isImported: Bool { importedFolder != nil }
     }
 
     init(model: WhisperModel) {
@@ -66,8 +71,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
     /// Directory where WhisperKit actually places a downloaded variant.
     /// `WhisperKit.download(downloadBase:)` appends `models/<repo>/<variant>`.
+    /// For user-imported models we return the pre-bound folder instead.
     static func modelFolder(for model: WhisperModel) -> URL {
-        modelsDirectory
+        if let imported = model.importedFolder { return imported }
+        return modelsDirectory
             .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent("argmaxinc/whisperkit-coreml", isDirectory: true)
             .appendingPathComponent(model.variant, isDirectory: true)
@@ -131,6 +138,11 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         endpoint: String? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
     ) async throws {
+        if model.isImported {
+            // Imported models live entirely on the user's disk.
+            info.isReady = Self.isModelDownloaded(model)
+            return
+        }
         if Self.isModelDownloaded(model) {
             info.isReady = true
             return

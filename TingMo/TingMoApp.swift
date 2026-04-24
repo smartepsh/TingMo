@@ -11,6 +11,7 @@ struct TingMoApp: App {
     @State private var statusIndicatorManager = StatusIndicatorManager()
     @State private var languagePreference = LanguagePreference()
     @State private var downloadSource = DownloadSourcePreference()
+    @State private var importedModelStore = ImportedModelStore()
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
@@ -33,11 +34,16 @@ struct TingMoApp: App {
 
     init() {
         let downloadSource = DownloadSourcePreference()
-        let registry = EngineRegistry(downloadSource: downloadSource)
+        let importedStore = ImportedModelStore()
+        let registry = EngineRegistry(
+            downloadSource: downloadSource,
+            importedModelStore: importedStore
+        )
         let languagePreference = LanguagePreference()
         _engineRegistry = State(initialValue: registry)
         _languagePreference = State(initialValue: languagePreference)
         _downloadSource = State(initialValue: downloadSource)
+        _importedModelStore = State(initialValue: importedStore)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
             languagePreference: languagePreference
@@ -180,7 +186,8 @@ struct TingMoApp: App {
                 statusIndicatorManager: statusIndicatorManager,
                 engineRegistry: engineRegistry,
                 languagePreference: languagePreference,
-                downloadSource: downloadSource
+                downloadSource: downloadSource,
+                importedModelStore: importedModelStore
             )
         }
 
