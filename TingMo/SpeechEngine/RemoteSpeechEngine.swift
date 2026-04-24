@@ -54,7 +54,7 @@ struct RemoteEngineConfig: Sendable {
             "en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "nl",
             "pl", "ru", "tr", "ar", "hi",
         ],
-        healthcheckEndpoint: "https://api.elevenlabs.io/v1/user",
+        healthcheckEndpoint: "https://api.elevenlabs.io/v1/models",
         billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
     )
 }
