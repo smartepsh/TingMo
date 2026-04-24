@@ -16,6 +16,7 @@ final class LanguagePreference {
     /// Current ISO code passed to the engine (empty string means "auto-detect").
     var current: String {
         didSet {
+            NSLog("[TingMo][Language] current changed \(oldValue) → \(current)")
             UserDefaults.standard.set(current, forKey: Self.storageKey)
         }
     }

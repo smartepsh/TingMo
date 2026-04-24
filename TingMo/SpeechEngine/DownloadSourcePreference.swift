@@ -12,6 +12,7 @@ final class DownloadSourcePreference {
     /// Current endpoint URL string (no trailing slash). Empty means "use default".
     var endpoint: String {
         didSet {
+            NSLog("[TingMo][DownloadSource] endpoint changed '\(oldValue)' → '\(endpoint)'")
             UserDefaults.standard.set(endpoint, forKey: Self.storageKey)
         }
     }

@@ -16,6 +16,7 @@ enum KeychainStore {
     @discardableResult
     static func set(_ value: String, for service: String, account: String = defaultAccount) -> Bool {
         if value.isEmpty {
+            NSLog("[TingMo][Keychain] set → delete (empty value) service=\(service)")
             return delete(service: service, account: account)
         }
         let data = Data(value.utf8)
@@ -28,12 +29,18 @@ enum KeychainStore {
             kSecValueData as String: data,
         ]
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecSuccess { return true }
+        if status == errSecSuccess {
+            NSLog("[TingMo][Keychain] set updated service=\(service) bytes=\(data.count)")
+            return true
+        }
         if status == errSecItemNotFound {
             var insert = query
             insert[kSecValueData as String] = data
-            return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
+            let addStatus = SecItemAdd(insert as CFDictionary, nil)
+            NSLog("[TingMo][Keychain] set inserted service=\(service) bytes=\(data.count) status=\(addStatus)")
+            return addStatus == errSecSuccess
         }
+        NSLog("[TingMo][Keychain] set FAILED service=\(service) status=\(status)")
         return false
     }
 
@@ -62,6 +69,7 @@ enum KeychainStore {
             kSecAttrAccount as String: account,
         ]
         let status = SecItemDelete(query as CFDictionary)
+        NSLog("[TingMo][Keychain] delete service=\(service) status=\(status)")
         return status == errSecSuccess || status == errSecItemNotFound
     }
 }

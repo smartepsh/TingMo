@@ -130,7 +130,11 @@ final class EngineRegistry {
     // MARK: - Engine Selection
 
     func setActiveEngine(_ engineID: String) {
-        guard engines.contains(where: { $0.info.id == engineID }) else { return }
+        guard engines.contains(where: { $0.info.id == engineID }) else {
+            NSLog("[TingMo][Registry] setActiveEngine ignored — unknown id=\(engineID)")
+            return
+        }
+        NSLog("[TingMo][Registry] setActiveEngine id=\(engineID)")
         activeEngineID = engineID
         preloadActiveEngine()
     }
@@ -155,11 +159,16 @@ final class EngineRegistry {
     /// `loadingEngineIDs` hint around the call so UI can show a "loading"
     /// badge during first-use compile/prewarm.
     func loadActiveEngine() async throws {
-        guard let whisper = activeEngine as? WhisperKitEngine else { return }
+        guard let whisper = activeEngine as? WhisperKitEngine else {
+            NSLog("[TingMo][Registry] loadActiveEngine skipped — active engine is not WhisperKit (id=\(activeEngineID))")
+            return
+        }
         let id = whisper.info.id
+        NSLog("[TingMo][Registry] loadActiveEngine start id=\(id)")
         loadingEngineIDs.insert(id)
         defer { loadingEngineIDs.remove(id) }
         try await whisper.loadModel()
+        NSLog("[TingMo][Registry] loadActiveEngine done id=\(id)")
     }
 
     // MARK: - Language Compatibility
@@ -180,15 +189,28 @@ final class EngineRegistry {
     /// downloading.
     @MainActor
     func downloadModel(engineID: String, makeActiveWhenDone: Bool = true) {
-        guard let engine = engines.first(where: { $0.info.id == engineID }) else { return }
-        guard let whisper = engine as? WhisperKitEngine else { return }
-        guard downloadProgress[engineID] == nil else { return }
-        if whisper.info.isReady { return }
+        guard let engine = engines.first(where: { $0.info.id == engineID }) else {
+            NSLog("[TingMo][Registry] downloadModel aborted — unknown engine id=\(engineID)")
+            return
+        }
+        guard let whisper = engine as? WhisperKitEngine else {
+            NSLog("[TingMo][Registry] downloadModel aborted — not a WhisperKit engine id=\(engineID)")
+            return
+        }
+        guard downloadProgress[engineID] == nil else {
+            NSLog("[TingMo][Registry] downloadModel ignored — already in progress id=\(engineID)")
+            return
+        }
+        if whisper.info.isReady {
+            NSLog("[TingMo][Registry] downloadModel ignored — already ready id=\(engineID)")
+            return
+        }
 
         downloadProgress[engineID] = 0
         downloadErrors[engineID] = nil
 
         let endpoint = downloadSource.effectiveEndpoint
+        NSLog("[TingMo][Registry] downloadModel start id=\(engineID) endpoint=\(endpoint ?? "default") makeActive=\(makeActiveWhenDone)")
 
         let task = Task { [weak self] in
             defer {
@@ -203,14 +225,22 @@ final class EngineRegistry {
                         self?.downloadProgress[engineID] = fraction
                     }
                 }
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    NSLog("[TingMo][Registry] downloadModel cancelled after success id=\(engineID)")
+                    return
+                }
+                NSLog("[TingMo][Registry] downloadModel success id=\(engineID)")
                 if makeActiveWhenDone {
                     await MainActor.run { [weak self] in
                         self?.setActiveEngine(engineID)
                     }
                 }
             } catch {
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    NSLog("[TingMo][Registry] downloadModel cancelled id=\(engineID)")
+                    return
+                }
+                NSLog("[TingMo][Registry] downloadModel FAILED id=\(engineID) error=\(error)")
                 await MainActor.run { [weak self] in
                     self?.downloadErrors[engineID] = Self.describeDownloadError(error)
                 }
@@ -223,6 +253,7 @@ final class EngineRegistry {
     /// request may already be mid-write; the partial folder is left on disk
     /// for a later retry (WhisperKit resumes file-by-file).
     func cancelDownload(engineID: String) {
+        NSLog("[TingMo][Registry] cancelDownload id=\(engineID)")
         downloadTasks[engineID]?.cancel()
         downloadTasks[engineID] = nil
         downloadProgress[engineID] = nil
@@ -238,9 +269,12 @@ final class EngineRegistry {
     @discardableResult
     func deleteDownloadedModel(engineID: String) -> Bool {
         guard let engine = engines.first(where: { $0.info.id == engineID }) as? WhisperKitEngine else {
+            NSLog("[TingMo][Registry] deleteDownloadedModel aborted — not a WhisperKit engine id=\(engineID)")
             return false
         }
-        return engine.deleteLocalFiles()
+        let ok = engine.deleteLocalFiles()
+        NSLog("[TingMo][Registry] deleteDownloadedModel id=\(engineID) success=\(ok)")
+        return ok
     }
 
     private static func describeDownloadError(_ error: Error) -> String {

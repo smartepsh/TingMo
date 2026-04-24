@@ -81,17 +81,21 @@ final class ImportedModelStore {
     /// failure; rejects duplicate IDs.
     @discardableResult
     func importFolder(_ source: URL) throws -> ImportedModel {
+        NSLog("[TingMo][ImportedModel] import start source=\(source.path)")
         let values = try? source.resourceValues(forKeys: [.isDirectoryKey])
         guard values?.isDirectory == true else {
+            NSLog("[TingMo][ImportedModel] import aborted — source is not a directory")
             throw ImportError.invalidSource
         }
 
         if let validationError = Self.validateFolder(source) {
+            NSLog("[TingMo][ImportedModel] import aborted — validation error=\(validationError)")
             throw validationError
         }
 
         let id = sanitise(source.lastPathComponent)
         if models.contains(where: { $0.id == id }) {
+            NSLog("[TingMo][ImportedModel] import aborted — duplicate id=\(id)")
             throw ImportError.duplicateID(id)
         }
 
@@ -105,6 +109,7 @@ final class ImportedModelStore {
         do {
             try FileManager.default.copyItem(at: source, to: destination)
         } catch {
+            NSLog("[TingMo][ImportedModel] copy FAILED id=\(id) error=\(error)")
             try? FileManager.default.removeItem(at: destination)
             throw ImportError.copyFailed(underlying: error)
         }
@@ -112,11 +117,13 @@ final class ImportedModelStore {
         let model = ImportedModel(id: id, displayName: source.lastPathComponent)
         models.append(model)
         save()
+        NSLog("[TingMo][ImportedModel] import success id=\(id) folder=\(destination.path)")
         return model
     }
 
     /// Remove the model directory and drop it from the manifest.
     func remove(_ model: ImportedModel) {
+        NSLog("[TingMo][ImportedModel] remove id=\(model.id) folder=\(model.folderURL.path)")
         try? FileManager.default.removeItem(at: model.folderURL)
         models.removeAll { $0.id == model.id }
         save()
