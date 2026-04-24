@@ -36,10 +36,12 @@ struct ContextSettingsSection: View {
             ) {
                 Text(String(localized: "Total limit: \(settings.maxTotalCharacters) chars"))
             }
+
+            Toggle("Log context for dogfood", isOn: $settings.debugLoggingEnabled)
         } header: {
             Text("Context")
         } footer: {
-            Text(String(localized: "Lower priority numbers are injected first. Sensitive fields are excluded before prompt construction."))
+            Text(String(localized: "Lower priority numbers are injected first. Sensitive fields are excluded before prompt construction. Context logging writes non-sensitive context previews to the app log."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

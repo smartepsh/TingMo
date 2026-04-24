@@ -176,6 +176,7 @@ final class DictationPipeline {
 
         do {
             let context = ContextAggregator(settings: contextSettings).collect()
+            logContextIfNeeded(context)
             let corrected = try await correctionService.correct(
                 transcript: transcript,
                 context: context,
@@ -186,6 +187,26 @@ final class DictationPipeline {
             NSLog("[TingMo] LLM correction failed, falling back to raw transcript: \(error)")
             return (transcript, error)
         }
+    }
+
+    private func logContextIfNeeded(_ context: [LLMContextItem]) {
+        guard contextSettings.debugLoggingEnabled else { return }
+
+        if context.isEmpty {
+            NSLog("[TingMo] LLM context: empty")
+            return
+        }
+
+        let summary = context.map { item in
+            let preview = item.text
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(240)
+            return "\(item.kind.rawValue)(priority=\(item.priority), chars=\(item.text.count)): \(preview)"
+        }
+        .joined(separator: " | ")
+
+        NSLog("[TingMo] LLM context: \(summary)")
     }
 
     private func finish(error: Error?) async {

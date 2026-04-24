@@ -25,8 +25,13 @@ final class ContextSettingsStore {
         didSet { UserDefaults.standard.set(maxTotalCharacters, forKey: Self.maxTotalCharactersKey) }
     }
 
+    var debugLoggingEnabled: Bool {
+        didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Self.debugLoggingEnabledKey) }
+    }
+
     private static let maxCharactersPerItemKey = "ContextSettingsStore.maxCharactersPerItem"
     private static let maxTotalCharactersKey = "ContextSettingsStore.maxTotalCharacters"
+    private static let debugLoggingEnabledKey = "ContextSettingsStore.debugLoggingEnabled"
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
@@ -41,6 +46,8 @@ final class ContextSettingsStore {
 
         let savedTotal = UserDefaults.standard.integer(forKey: Self.maxTotalCharactersKey)
         maxTotalCharacters = savedTotal > 0 ? savedTotal : 4_000
+
+        debugLoggingEnabled = UserDefaults.standard.bool(forKey: Self.debugLoggingEnabledKey)
     }
 
     func config(for kind: LLMContextItem.Kind) -> ContextSourceConfig {
