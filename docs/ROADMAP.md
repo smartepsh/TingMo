@@ -1,7 +1,7 @@
 # TingMo 路线图
 
 > **状态：** 活文档。里程碑为垂直切片——每个里程碑结束时，应用都应是可用状态。
-> **当前重点：** M1（尚未开始，等待里程碑评审）。
+> **当前重点：** M3（LLM 纠正 + 基础上下文）。
 
 ## 图例
 
@@ -53,19 +53,28 @@
 - 设置内引擎/模型切换器 + 多语言 + 引擎-语言兼容性校验
 - Parakeet：等 Argmax SDK，保留占位 "coming soon"
 
-## M3 — LLM 纠正 + 基础上下文 + 极简 Preset
+## M3 — LLM 纠正 + 基础上下文
 
-**成果：** 转录文本经用户自选 LLM 做上下文感知纠正；引入极简 Preset 承载 LLM 配置。
+**成果：** 转录文本经用户自选 LLM 做上下文感知纠正。
 
 - LLMProvider 协议 + OpenAI-compat 适配 + Anthropic 适配
 - 纠正管线：转录 + 上下文 → LLM → 纠正后文本
 - API Key 存储（Keychain），provider 维度的 model/prompt/temperature 配置
 - 上下文感知 v1：Accessibility — 选中文本、当前输入框、窗口标题 + 应用名、剪贴板；密码字段检测与排除
 - 上下文聚合器（优先级 + 开关）
-- **极简 Preset：** 仅承载"LLM 配置 + 是否启用知识库"两项，不做完整 CRUD（完整版 1.0 后再做）
 - **推迟：** Active App 深读、截图兜底（→ 1.0 后）
 
-## M4 — 知识库纠正 🎯
+## M4 — Preset
+
+**成果：** 将用户的 LLM 配置沉淀为可复用的 Preset，先保持范围克制。
+
+- **极简 Preset：** 仅承载"LLM 配置 + 是否启用知识库"两项
+- 设置内管理 Preset 基础配置：provider / endpoint / key-ref / model / prompt / temperature / 知识库开关
+- 默认 Preset 与迁移：现有 LLM 配置升级为默认 Preset
+- Preset 配置用于纠正管线，不影响 M2 的引擎/模型切换
+- **推迟：** 完整 CRUD、多 Preset 菜单栏切换、按应用自动切换、Preset ↔ 词典 ↔ 知识库分片绑定（→ 1.0 后）
+
+## M5 — 知识库纠正 🎯
 
 **成果：** 用户过往的转录、纠正与笔记，成为 LLM 纠正时的个性化上下文源。
 
@@ -81,13 +90,19 @@
 - **隐私：** 向量 + 原文仅本地，不上传
 - **默认关闭**：用户主动开启，且 LLM 已开启
 
-> **待调研项见 `docs/architecture.md` §3.5**——embedding 模型、向量存储、检索策略、prompt 注入格式、索引生命周期等均未决。M4 启动前需完成调研并把决策回填 architecture.md。
+> **待调研项见 `docs/architecture.md` §3.5**——embedding 模型、向量存储、检索策略、prompt 注入格式、索引生命周期等均未决。M5 启动前需完成调研并把决策回填 architecture.md。
 
 ### 推迟到 1.0 后
 - iCloud 向量同步
 - Per-Preset 知识库分片（目前全局共用）
 
-## M5 — 发布
+## M6 — UI 调整
+
+**成果：** 预留一个独立 UI 调整里程碑；具体范围待后续设计/体验审阅后补充。
+
+- 待定义
+
+## M7 — 发布
 
 **成果：** 真实用户可安装使用。
 

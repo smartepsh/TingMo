@@ -38,9 +38,10 @@ TingMo/
   # —— 后续里程碑 ——
   Context/                      # M3（Accessibility 基础项）
   LLM/                          # M3
-  ConfigPreset/                 # M3（极简版），完整版 1.0 后
-  KnowledgeBase/                # M4（历史存储 + 向量索引 + 检索 + 管理 UI）
-  Updater/                      # M5（Sparkle）
+  ConfigPreset/                 # M4（极简版），完整版 1.0 后
+  KnowledgeBase/                # M5（历史存储 + 向量索引 + 检索 + 管理 UI）
+  UIRefresh/                    # M6（范围待定）
+  Updater/                      # M7（Sparkle）
 
   # —— 1.0 后 ——
   Dictionary/                   # 自定义词典（1.0 后）
@@ -73,9 +74,9 @@ WhisperKit 模型默认从 HuggingFace 下载（散文件夹），支持：
 
 录音中设备断开：立即停止、状态 UI 通知用户、已录音频正常走转录流程。**不做自动切换。**
 
-### 3.4 Config Preset（v1 极简）
+### 3.4 Config Preset（M4 极简）
 
-v1 只存两项：LLM 配置（provider / endpoint / key-ref / model / prompt / temperature） + 是否启用知识库。用户只有一个隐式 Preset，不做 CRUD。
+M4 只存两项：LLM 配置（provider / endpoint / key-ref / model / prompt / temperature） + 是否启用知识库。用户只有一个默认 Preset，先不承担引擎/语言/设备模式。
 
 1.0 后再扩展为完整 Preset（引擎、语言、设备选择模式、活跃词典/知识库分片），届时再引入菜单栏切换器、数量限制、iCloud 同步（API Key 不同步）。
 
