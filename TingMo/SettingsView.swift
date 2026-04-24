@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Bindable var languagePreference: LanguagePreference
     @Bindable var downloadSource: DownloadSourcePreference
     @Bindable var importedModelStore: ImportedModelStore
+    @Bindable var llmSettings: LLMSettingsStore
 
     @Environment(\.openWindow) private var openWindow
 
@@ -39,6 +40,8 @@ struct SettingsView: View {
                     engineRegistry: engineRegistry
                 )
             }
+
+            LLMSettingsSection(settings: llmSettings)
 
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)
