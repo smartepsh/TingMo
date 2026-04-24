@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 
 /// Injects text into the focused field by writing to the pasteboard,
@@ -34,6 +35,16 @@ final class TextInjector {
     func inject(_ text: String) async throws {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw TextInjectionError.emptyText
+        }
+
+        // AXIsProcessTrusted drives whether synthesized key events reach
+        // other apps. If the user hasn't granted Accessibility access, the
+        // Cmd+V we post to the HID tap is silently dropped and the paste
+        // never lands — surface this as an error instead of pretending the
+        // inject succeeded.
+        if !AXIsProcessTrusted() {
+            NSLog("[TingMo][Inject] aborted — Accessibility permission not granted")
+            throw TextInjectionError.accessibilityNotGranted
         }
 
         let pasteboard = NSPasteboard.general
@@ -79,12 +90,15 @@ enum TextInjectionError: Error, LocalizedError {
     case emptyText
     case pasteboardWriteFailed
     case syntheticEventFailed
+    case accessibilityNotGranted
 
     var errorDescription: String? {
         switch self {
         case .emptyText: "No text to paste."
         case .pasteboardWriteFailed: "Failed to write text to the clipboard."
         case .syntheticEventFailed: "Failed to synthesize the paste keystroke."
+        case .accessibilityNotGranted:
+            String(localized: "Accessibility permission is required to paste. Enable TingMo in System Settings → Privacy & Security → Accessibility.")
         }
     }
 }
