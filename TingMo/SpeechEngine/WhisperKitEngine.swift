@@ -125,7 +125,12 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
     /// Download the model variant into our managed folder.
     /// No-op if already present on disk.
-    func downloadModel(progress: (@Sendable (Double) -> Void)? = nil) async throws {
+    /// - Parameter endpoint: HuggingFace-compatible host URL to pull from.
+    ///   `nil` uses WhisperKit's built-in default (huggingface.co).
+    func downloadModel(
+        endpoint: String? = nil,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws {
         if Self.isModelDownloaded(model) {
             info.isReady = true
             return
@@ -137,12 +142,23 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         )
 
         do {
-            _ = try await WhisperKit.download(
-                variant: model.variant,
-                downloadBase: Self.modelsDirectory,
-                from: "argmaxinc/whisperkit-coreml"
-            ) { p in
-                progress?(p.fractionCompleted)
+            if let endpoint, !endpoint.isEmpty {
+                _ = try await WhisperKit.download(
+                    variant: model.variant,
+                    downloadBase: Self.modelsDirectory,
+                    from: "argmaxinc/whisperkit-coreml",
+                    endpoint: endpoint
+                ) { p in
+                    progress?(p.fractionCompleted)
+                }
+            } else {
+                _ = try await WhisperKit.download(
+                    variant: model.variant,
+                    downloadBase: Self.modelsDirectory,
+                    from: "argmaxinc/whisperkit-coreml"
+                ) { p in
+                    progress?(p.fractionCompleted)
+                }
             }
             info.isReady = true
         } catch {

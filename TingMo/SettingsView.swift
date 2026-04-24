@@ -7,6 +7,7 @@ struct SettingsView: View {
     let statusIndicatorManager: StatusIndicatorManager
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var languagePreference: LanguagePreference
+    @Bindable var downloadSource: DownloadSourcePreference
 
     @Environment(\.openWindow) private var openWindow
 
@@ -15,6 +16,11 @@ struct SettingsView: View {
             EngineSettingsView(
                 engineRegistry: engineRegistry,
                 languagePreference: languagePreference
+            )
+
+            ModelDownloadView(
+                engineRegistry: engineRegistry,
+                downloadSource: downloadSource
             )
 
             Section {
@@ -82,7 +88,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 600)
+        .frame(width: 520, height: 700)
         .onAppear {
             permissionManager.refreshAll()
             permissionManager.startPolling()

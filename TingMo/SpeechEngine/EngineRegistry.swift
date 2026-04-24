@@ -28,6 +28,13 @@ final class EngineRegistry {
     /// the user has no feedback that anything is happening.
     var loadingEngineIDs: Set<String> = []
 
+    /// In-flight download tasks keyed by engine ID, so we can cancel them.
+    private var downloadTasks: [String: Task<Void, Never>] = [:]
+
+    /// Source of the HuggingFace endpoint (and other download options).
+    /// Injected so the registry can honour the user's mirror choice.
+    private let downloadSource: DownloadSourcePreference
+
     /// Whether a download is in progress.
     var isDownloading: Bool {
         !downloadProgress.isEmpty
@@ -43,7 +50,8 @@ final class EngineRegistry {
         downloadErrors[engineID]
     }
 
-    init() {
+    init(downloadSource: DownloadSourcePreference) {
+        self.downloadSource = downloadSource
         let defaultID = WhisperKitEngine.defaultModelEngineID
         activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
@@ -127,29 +135,44 @@ final class EngineRegistry {
         downloadProgress[engineID] = 0
         downloadErrors[engineID] = nil
 
-        Task { [weak self] in
+        let endpoint = downloadSource.effectiveEndpoint
+
+        let task = Task { [weak self] in
             defer {
                 Task { @MainActor [weak self] in
                     self?.downloadProgress[engineID] = nil
+                    self?.downloadTasks[engineID] = nil
                 }
             }
             do {
-                try await whisper.downloadModel { fraction in
+                try await whisper.downloadModel(endpoint: endpoint) { fraction in
                     Task { @MainActor [weak self] in
                         self?.downloadProgress[engineID] = fraction
                     }
                 }
+                if Task.isCancelled { return }
                 if makeActiveWhenDone {
                     await MainActor.run { [weak self] in
                         self?.setActiveEngine(engineID)
                     }
                 }
             } catch {
+                if Task.isCancelled { return }
                 await MainActor.run { [weak self] in
                     self?.downloadErrors[engineID] = Self.describeDownloadError(error)
                 }
             }
         }
+        downloadTasks[engineID] = task
+    }
+
+    /// Cancel an in-flight download. Best-effort: the underlying HTTP
+    /// request may already be mid-write; the partial folder is left on disk
+    /// for a later retry (WhisperKit resumes file-by-file).
+    func cancelDownload(engineID: String) {
+        downloadTasks[engineID]?.cancel()
+        downloadTasks[engineID] = nil
+        downloadProgress[engineID] = nil
     }
 
     /// Cancel / clear a failed download so the user can retry.
