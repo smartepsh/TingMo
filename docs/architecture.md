@@ -90,46 +90,49 @@ LLM 纠正前的个性化语义检索层。定位取代自定义词典，成为 
 - 数据源：历史转录（自动积累）、用户手动笔记、外部文件导入（Markdown / 纯文本）
 - 在 LLM 纠正前注入：当前转录作为 query，检索相关片段拼入 prompt
 
-**M5 v1 技术决策**
+**待调研**
 
-1. **Embedding 模型：Apple `NLEmbedding` sentence embedding**
-   - 首版使用 Natural Language 框架内置 `NLEmbedding.sentenceEmbedding(for:)`，按文本语言选择 `.simplifiedChinese` / `.english`，无法判断或不可用时降级到可用语言，再不行只走 FTS5 关键字检索。
-   - 理由：零模型下载、零打包体积、纯本地、Swift 集成成本最低，适合 M5 先验证“历史纠正可检索注入”的产品闭环。
-   - 暂不采用 `bge-small-zh-v1.5` / `multilingual-e5-small` 作为首版默认：效果潜力更高，但需要 Core ML/ONNX 转换、tokenizer 集成、模型下载与版本迁移；列为 M5 后续质量升级。
+具体技术选型尚未确定，需要调研以下方向：
 
-2. **向量存储：SQLite BLOB + 应用内 cosine 扫描**
-   - 每条知识库片段保存一个归一化 `Float32` 向量 BLOB，维度和 embedding 模型版本随记录保存。
-   - 查询时读取同模型/同维度向量，在 Swift 中做 dot product / cosine，取 top-K。M5 预期 1K-100K 条，首版接受线性扫描，用真实 dogfood 数据再决定是否升级。
-   - 暂不采用 `sqlite-vec` / SQLite `vec1` / USearch 作为首版默认：它们能带来 ANN 或更快 KNN，但会增加扩展加载、二进制分发、沙盒与迁移复杂度；保留为规模上来后的替换层。
+1. **Embedding 模型**
+   - 候选：`bge-small-zh-v1.5`、`multilingual-e5-small`、Apple `NLEmbedding`、其他开源小模型
+   - 评估维度：中英双语质量、模型体积、CoreML/MLX 推理延迟、内存占用、打包 vs 独立下载
 
-3. **原文存储：单个 SQLite 数据库**
-   - 数据库位于 `~/Library/Application Support/TingMo/KnowledgeBase/knowledge.sqlite`。
-   - 首版直接使用系统 `sqlite3` C API，避免为 M5-1 引入新的 SPM 依赖；如果后续管理 UI/观察需求复杂，再引入 GRDB。
-   - 表结构分三层：`kb_entries`（原始条目与元数据）、`kb_chunks`（可检索片段）、`kb_embeddings`（向量与模型版本）。同时维护 `kb_chunks_fts` FTS5 表用于关键字召回和 embedding 不可用时的兜底。
+2. **向量存储方案**
+   - 候选：SQLite BLOB + 应用内 cosine（暴力扫）、`sqlite-vec` 扩展、`USearch`、`ObjectBox`、自研 HNSW
+   - 评估维度：规模（预期 1K–100K 条）下的查询延迟、构建/更新复杂度、Swift 集成成本、磁盘占用
 
-4. **检索策略：语义优先，FTS 兜底**
-   - Query 使用“当前转录 + 非敏感上下文摘要”，但当前转录权重最高；上下文只取应用名、窗口标题、选中文本等短字段，避免把整段输入框内容变成噪声。
-   - 默认 `topK = 5`，每条片段最多 600 字符，总注入预算 2,000 字符。
-   - 语义检索只返回超过阈值的结果；阈值首版设为 `0.35`，dogfood 后调整。若 embedding 不可用或结果不足，用 FTS5 `rank` 补足。
-   - 去重按 `entryID` 做，同一条历史最多注入一个最高分片段。
+3. **原文存储方案**
+   - 候选：SQLite（GRDB）、SwiftData、Core Data、纯文件
+   - 评估维度：与向量存储的耦合方式、迁移成本、FTS 支持（是否需要关键字+语义混合检索）
 
-5. **Prompt 注入格式：作为 user message 的上下文块**
-   - 不改用户自定义 system prompt，避免知识库内容与行为指令混在一起。
-   - 通过 `LLMContextItem.Kind.knowledgeBase` 注入到现有 `LLMCorrectionPrompt.userMessage` 的上下文区，格式为“历史纠正片段：原文 → 纠正后；来源应用；时间”。
-   - 知识库片段只作为纠错参考，提示语强调“仅在有帮助时使用”，避免把旧内容误当作当前输入。
+4. **检索策略**
+   - Query 构造：仅转录 vs 转录 + 上下文（窗口/应用/选中文本）
+   - Top-K 取值与相关性阈值
+   - 混合检索（BM25 + 向量）是否必要
+   - 去重与多样性（MMR 等）
+
+5. **Prompt 注入格式**
+   - 注入到 system prompt 还是 user message
+   - 每条片段的渲染格式（仅原文 / 原文 + 纠正对 / 带时间/应用元数据）
+   - Token 预算控制（片段截断、K 动态调整）
 
 6. **索引生命周期**
-   - 历史转录保存后立即写入 `kb_entries`，并排队异步 chunk + embedding。
-   - 首次启用知识库时批量补索引已有未索引条目；进度 UI 在 M5-5 管理页展示，M5-1/M5-2 先提供状态字段。
-   - `embeddingModelID` 或 `embeddingRevision` 改变时，旧向量标记为 stale，后台重建；原文永远不因向量重建失败而丢失。
+   - 首次启用时批量索引已有历史的进度 UI 设计
+   - 增量索引时机（纠正后立即 vs 批量异步）
+   - 重建索引触发条件（换模型、数据损坏）
 
-7. **隐私/合规边界**
-   - 标记为敏感的上下文不入库；文本若匹配密码/API key/token 等模式，默认跳过知识库保存。
-   - 管理 UI 必须提供清空知识库、删除单条、禁用来源类型。M5 不做 iCloud 同步；向量和原文都只留本机。
+7. **知识库管理 UI**
+   - 条目浏览/搜索/删除
+   - 来源粒度的禁用（仅历史 / 仅笔记 / 仅导入）
+   - 存储占用展示
 
-8. **升级路径**
-   - 如果 dogfood 显示 Apple sentence embedding 对中文专名召回不足，优先新增可下载 Core ML embedding 模型（候选 `bge-small-zh-v1.5` 或 `multilingual-e5-small`）。
-   - 如果线性扫描在 100K 条附近不可接受，再将 `VectorIndex` 协议实现替换为 `sqlite-vec` 或 USearch；数据库 schema 已把原文、chunk、embedding 拆开，便于迁移。
+8. **隐私/合规边界**
+   - 敏感内容检测（密码、API key 样式）是否入库
+   - 导出/清空的操作路径
+   - 未来 iCloud 同步方案（向量体积、端到端加密选项）
+
+调研完成后将决策落回本节。
 
 ### 3.6 LLM 纠正：可选后处理
 
