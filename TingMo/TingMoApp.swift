@@ -9,6 +9,7 @@ struct TingMoApp: App {
     @State private var hotkeyManager = HotkeyManager()
     @State private var engineRegistry: EngineRegistry
     @State private var statusIndicatorManager = StatusIndicatorManager()
+    @State private var languagePreference = LanguagePreference()
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
@@ -31,8 +32,13 @@ struct TingMoApp: App {
 
     init() {
         let registry = EngineRegistry()
+        let languagePreference = LanguagePreference()
         _engineRegistry = State(initialValue: registry)
-        _pipeline = State(initialValue: DictationPipeline(registry: registry))
+        _languagePreference = State(initialValue: languagePreference)
+        _pipeline = State(initialValue: DictationPipeline(
+            registry: registry,
+            languagePreference: languagePreference
+        ))
     }
 
     /// Menu icon should only show the recording variant while actively
@@ -168,7 +174,9 @@ struct TingMoApp: App {
                 permissionManager: permissionManager,
                 audioDeviceManager: audioDeviceManager,
                 hotkeyManager: hotkeyManager,
-                statusIndicatorManager: statusIndicatorManager
+                statusIndicatorManager: statusIndicatorManager,
+                engineRegistry: engineRegistry,
+                languagePreference: languagePreference
             )
         }
 

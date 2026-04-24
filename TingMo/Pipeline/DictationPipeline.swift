@@ -38,16 +38,19 @@ final class DictationPipeline {
     /// Last error surfaced by the pipeline, cleared on next start.
     var lastError: Error?
 
-    /// Language tag passed to the engine (ISO code). M1 defaults to Chinese
-    /// since tiny's language auto-detect is unreliable; real per-preset
-    /// language configuration arrives with M3.
-    var language: String = "zh"
+    /// Language tag passed to the engine (ISO code). Read from the shared
+    /// `LanguagePreference` so settings changes propagate immediately.
+    var language: String {
+        languagePreference.current
+    }
 
     private let registry: EngineRegistry
+    private let languagePreference: LanguagePreference
     private let capture = AudioCapture()
 
-    init(registry: EngineRegistry) {
+    init(registry: EngineRegistry, languagePreference: LanguagePreference) {
         self.registry = registry
+        self.languagePreference = languagePreference
     }
 
     /// Begin capturing audio. Fast — engine load/download is NOT done here.

@@ -5,11 +5,18 @@ struct SettingsView: View {
     let audioDeviceManager: AudioDeviceManager
     let hotkeyManager: HotkeyManager
     let statusIndicatorManager: StatusIndicatorManager
+    @Bindable var engineRegistry: EngineRegistry
+    @Bindable var languagePreference: LanguagePreference
 
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
+            EngineSettingsView(
+                engineRegistry: engineRegistry,
+                languagePreference: languagePreference
+            )
+
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)
                     .frame(minHeight: 100)
