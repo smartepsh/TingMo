@@ -46,11 +46,21 @@ final class DictationPipeline {
 
     private let registry: EngineRegistry
     private let languagePreference: LanguagePreference
+    private let llmSettings: LLMSettingsStore
+    private let contextSettings: ContextSettingsStore
+    private let correctionService = LLMCorrectionService()
     private let capture = AudioCapture()
 
-    init(registry: EngineRegistry, languagePreference: LanguagePreference) {
+    init(
+        registry: EngineRegistry,
+        languagePreference: LanguagePreference,
+        llmSettings: LLMSettingsStore,
+        contextSettings: ContextSettingsStore
+    ) {
         self.registry = registry
         self.languagePreference = languagePreference
+        self.llmSettings = llmSettings
+        self.contextSettings = contextSettings
     }
 
     /// Begin capturing audio. Fast — engine load/download is NOT done here.
@@ -151,11 +161,30 @@ final class DictationPipeline {
                 await finish(error: PipelineError.noSpeech)
                 return
             }
-            try await TextInjector.shared.inject(normalized)
-            await finish(error: nil)
+
+            let correctionResult = await correctIfNeeded(normalized)
+            try await TextInjector.shared.inject(correctionResult.text)
+            await finish(error: correctionResult.warning)
         } catch {
             NSLog("[TingMo] transcription error: \(error)")
             await finish(error: error)
+        }
+    }
+
+    private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
+        guard llmSettings.config.enabled else { return (transcript, nil) }
+
+        do {
+            let context = ContextAggregator(settings: contextSettings).collect()
+            let corrected = try await correctionService.correct(
+                transcript: transcript,
+                context: context,
+                config: llmSettings.config
+            )
+            return (corrected, nil)
+        } catch {
+            NSLog("[TingMo] LLM correction failed, falling back to raw transcript: \(error)")
+            return (transcript, error)
         }
     }
 

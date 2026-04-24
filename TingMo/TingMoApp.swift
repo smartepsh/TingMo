@@ -52,7 +52,9 @@ struct TingMoApp: App {
         _contextSettings = State(initialValue: contextSettings)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
-            languagePreference: languagePreference
+            languagePreference: languagePreference,
+            llmSettings: llmSettings,
+            contextSettings: contextSettings
         ))
     }
 
