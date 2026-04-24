@@ -5,12 +5,15 @@ import Foundation
 final class ParakeetEngine: SpeechEngine, @unchecked Sendable {
     static let engineID = "parakeet"
 
+    /// Human-readable badge shown in UI to indicate this engine is not yet usable.
+    static let comingSoonLabel = String(localized: "Coming Soon")
+
     let info: EngineInfo
 
     init(isReady: Bool = false) {
         self.info = EngineInfo(
             id: Self.engineID,
-            name: "Parakeet (English Only)",
+            name: "Parakeet (English) — \(Self.comingSoonLabel)",
             type: .local,
             supportedLanguages: ["en"],
             supportsStreaming: false,

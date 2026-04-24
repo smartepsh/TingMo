@@ -103,6 +103,11 @@ struct TingMoApp: App {
                     let engineID = "\(WhisperKitEngine.engineID)-\(model.id)"
                     modelMenuButton(engineID: engineID, model: model)
                 }
+
+                Divider()
+
+                Button(String(localized: "Parakeet (English) — Coming Soon")) {}
+                    .disabled(true)
             }
             .disabled(pipeline.state != .idle)
 
