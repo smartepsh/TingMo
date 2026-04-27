@@ -13,6 +13,7 @@ struct TingMoApp: App {
     @State private var downloadSource = DownloadSourcePreference()
     @State private var importedModelStore = ImportedModelStore()
     @State private var presetStore = ConfigPresetStore()
+    @State private var llmInstanceStore = LLMInstanceStore()
     @State private var contextSettings = ContextSettingsStore()
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -214,6 +215,7 @@ struct TingMoApp: App {
                 downloadSource: downloadSource,
                 importedModelStore: importedModelStore,
                 presetStore: presetStore,
+                llmInstanceStore: llmInstanceStore,
                 contextSettings: contextSettings
             )
         }
