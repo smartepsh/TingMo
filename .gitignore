@@ -1,5 +1,8 @@
 .DS_Store
 .claude/worktrees/
+.worktrees/
+.superpowers/
+docs/superpowers
 
 # Xcode user state
 xcuserdata/
