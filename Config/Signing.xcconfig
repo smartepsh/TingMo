@@ -1,0 +1,14 @@
+// Shared signing defaults for TingMo.
+//
+// Without Config/LocalSigning.xcconfig, Xcode keeps its default automatic
+// behavior. On machines without a configured team that means "Sign to Run
+// Locally" / ad-hoc signing.
+//
+// Run scripts/setup-local-signing.sh once to generate the ignored local
+// override and a throwaway local code-signing keychain. A stable certificate
+// signature keeps macOS TCC permissions, such as Accessibility, valid across
+// local rebuilds.
+
+CODE_SIGN_STYLE = Automatic
+
+#include? "LocalSigning.xcconfig"

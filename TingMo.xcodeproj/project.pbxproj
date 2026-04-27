@@ -12,6 +12,7 @@
 
 /* Begin PBXFileReference section */
 		762D97BC2F683D3500FF0133 /* TingMo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TingMo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		76B3FC0F2F6BB0E300791B19 /* TingMo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TingMo.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -38,6 +39,7 @@
 		762D97B32F683D3500FF0133 = {
 			isa = PBXGroup;
 			children = (
+				76D2F50F2FA00D8200C0FFEE /* Config */,
 				762D97BE2F683D3500FF0133 /* TingMo */,
 				76A0D97E2F9A2839000B4EBB /* Frameworks */,
 				762D97BD2F683D3500FF0133 /* Products */,
@@ -50,6 +52,14 @@
 				762D97BC2F683D3500FF0133 /* TingMo.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		76D2F50F2FA00D8200C0FFEE /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		76A0D97E2F9A2839000B4EBB /* Frameworks */ = {
@@ -283,11 +293,11 @@
 		};
 		762D97C82F683D3600FF0133 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = tingmo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = TingMo/TingMo.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -317,11 +327,11 @@
 		};
 		762D97C92F683D3600FF0133 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = tingmo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = TingMo/TingMo.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;

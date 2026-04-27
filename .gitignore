@@ -5,6 +5,12 @@
 xcuserdata/
 *.xcuserstate
 
+# Local code signing overrides. This keeps macOS TCC permissions stable on a
+# developer machine without committing local certificates or generated settings.
+Config/LocalSigning.xcconfig
+Config/TingMoLocalSigning.keychain-db
+Config/.fl*
+
 # Fiberplane local issue tracking
 .fp/*
 !.fp/config.toml

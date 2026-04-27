@@ -25,6 +25,18 @@ TingMo lives in your menu bar and provides pluggable speech-to-text with optiona
 
 Open `TingMo/TingMo.xcodeproj` in Xcode and build.
 
+For local development, run this once before granting macOS privacy permissions:
+
+```bash
+./scripts/setup-local-signing.sh
+```
+
+That generates an ignored `Config/LocalSigning.xcconfig` plus a local
+`TingMo Local Development` signing keychain. Local builds then use a stable
+certificate signature instead of a new ad-hoc cdhash on each build, so
+Accessibility and other TCC permissions do not need to be deleted and granted
+again after rebuilding.
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
