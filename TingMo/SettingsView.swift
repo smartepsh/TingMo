@@ -23,17 +23,20 @@ struct SettingsView: View {
         Form {
             EngineSettingsView(
                 engineRegistry: engineRegistry,
-                languagePreference: languagePreference
+                languagePreference: languagePreference,
+                presetStore: presetStore
             )
 
             ModelDownloadView(
                 engineRegistry: engineRegistry,
-                downloadSource: downloadSource
+                downloadSource: downloadSource,
+                presetStore: presetStore
             )
 
             ImportedModelSection(
                 engineRegistry: engineRegistry,
-                importedModelStore: importedModelStore
+                importedModelStore: importedModelStore,
+                presetStore: presetStore
             )
 
             ForEach(remoteEngines, id: \.info.id) { engine in
@@ -43,9 +46,15 @@ struct SettingsView: View {
                 )
             }
 
-            PresetSettingsSection(presetStore: presetStore)
+            PresetSettingsSection(
+                presetStore: presetStore,
+                instanceStore: llmInstanceStore
+            )
 
-            LLMInstanceSettingsSection(instanceStore: llmInstanceStore)
+            LLMInstanceSettingsSection(
+                instanceStore: llmInstanceStore,
+                presetStore: presetStore
+            )
 
             ContextSettingsSection(settings: contextSettings)
 

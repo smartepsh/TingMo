@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct ImportedModelSection: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var importedModelStore: ImportedModelStore
+    @Bindable var presetStore: ConfigPresetStore
 
     @State private var showingImporter = false
     @State private var lastError: String?
@@ -119,7 +120,11 @@ struct ImportedModelSection: View {
         // If this imported model is currently active, fall back to the default
         // built-in tiny variant so the pipeline isn't left pointing at a
         // soon-to-be-deleted folder.
-        if engineRegistry.activeEngineID == model.engineID {
+        if presetStore.defaultPreset.speechEngineID == model.engineID {
+            presetStore.replaceSpeechEngineSelection(
+                deletedID: model.engineID,
+                fallbackID: WhisperKitEngine.defaultModelEngineID
+            )
             engineRegistry.setActiveEngine(WhisperKitEngine.defaultModelEngineID)
         }
         importedModelStore.remove(model)

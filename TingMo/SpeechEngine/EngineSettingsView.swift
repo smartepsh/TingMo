@@ -9,20 +9,29 @@ import SwiftUI
 struct EngineSettingsView: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var languagePreference: LanguagePreference
+    @Bindable var presetStore: ConfigPresetStore
+
+    private var selectedLanguageCode: String {
+        presetStore.defaultPreset.languageCode
+    }
+
+    private var selectedSpeechEngine: (any SpeechEngine)? {
+        engineRegistry.engine(id: presetStore.defaultPreset.speechEngineID)
+    }
 
     var body: some View {
         Section {
-            Picker(String(localized: "Language"), selection: $languagePreference.current) {
+            Picker(String(localized: "Language"), selection: languageBinding) {
                 ForEach(LanguagePreference.availableLanguages) { lang in
                     Text(lang.name).tag(lang.code)
                 }
             }
 
-            if let active = engineRegistry.activeEngine,
-               !active.supportsLanguage(languagePreference.current)
+            if let active = selectedSpeechEngine,
+               !active.supportsLanguage(selectedLanguageCode)
             {
                 Label(
-                    String(localized: "\(active.info.name) does not support \(LanguagePreference.displayName(for: languagePreference.current)). Pick another engine or language."),
+                    String(localized: "\(active.info.name) does not support \(LanguagePreference.displayName(for: selectedLanguageCode)). Pick another engine or language."),
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -58,8 +67,8 @@ struct EngineSettingsView: View {
 
     @ViewBuilder
     private func engineRow(for engine: any SpeechEngine) -> some View {
-        let isActive = engineRegistry.activeEngineID == engine.info.id
-        let compatible = engine.supportsLanguage(languagePreference.current)
+        let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
+        let compatible = engine.supportsLanguage(selectedLanguageCode)
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -78,7 +87,7 @@ struct EngineSettingsView: View {
                         Text(size)
                     }
                     if !compatible {
-                        Text(String(localized: "Incompatible with \(LanguagePreference.displayName(for: languagePreference.current))"))
+                        Text(String(localized: "Incompatible with \(LanguagePreference.displayName(for: selectedLanguageCode))"))
                             .foregroundStyle(.orange)
                     } else if !engine.info.isReady {
                         Text(statusLabel(for: engine))
@@ -92,6 +101,7 @@ struct EngineSettingsView: View {
             Spacer()
 
             Button(activateButtonTitle(for: engine, isActive: isActive, compatible: compatible)) {
+                presetStore.defaultPreset.speechEngineID = engine.info.id
                 engineRegistry.setActiveEngine(engine.info.id)
             }
             .disabled(isActive || !compatible || !engine.info.isReady)
@@ -123,5 +133,15 @@ struct EngineSettingsView: View {
 
     private var remoteEngines: [any SpeechEngine] {
         engineRegistry.engines.filter { $0.info.type == .remote }
+    }
+
+    private var languageBinding: Binding<String> {
+        Binding(
+            get: { presetStore.defaultPreset.languageCode },
+            set: { code in
+                presetStore.defaultPreset.languageCode = code
+                languagePreference.current = code
+            }
+        )
     }
 }

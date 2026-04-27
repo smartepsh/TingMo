@@ -2,55 +2,27 @@ import SwiftUI
 
 struct PresetSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
-
-    @State private var apiKey: String = ""
-    @State private var apiKeySaved = false
+    @Bindable var instanceStore: LLMInstanceStore
 
     var body: some View {
         Section {
             TextField(String(localized: "Preset Name"), text: presetBinding(\.name))
                 .textFieldStyle(.roundedBorder)
 
-            Toggle(String(localized: "Enable LLM Correction"), isOn: llmBinding(\.enabled))
+            Toggle(String(localized: "Enable LLM Correction"), isOn: presetBinding(\.correctionEnabled))
 
-            Picker(String(localized: "Provider"), selection: providerBinding) {
-                ForEach(LLMProviderID.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
+            Picker(String(localized: "Correction Engine"), selection: llmInstanceBinding) {
+                Text(String(localized: "None")).tag(UUID?.none)
+                ForEach(instanceStore.instances) { instance in
+                    Text(instance.displayName).tag(Optional(instance.id))
                 }
-            }
-
-            TextField(String(localized: "Endpoint"), text: llmBinding(\.endpoint))
-                .textFieldStyle(.roundedBorder)
-                .textContentType(.URL)
-
-            TextField(String(localized: "Model"), text: llmBinding(\.model))
-                .textFieldStyle(.roundedBorder)
-
-            SecureField(String(localized: "API Key"), text: $apiKey)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { saveAPIKey() }
-
-            HStack {
-                Button(String(localized: "Save Key")) {
-                    saveAPIKey()
-                }
-                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Button(String(localized: "Clear Key"), role: .destructive) {
-                    clearAPIKey()
-                }
-                .disabled(!presetStore.hasAPIKey() && apiKey.isEmpty)
-
-                Spacer()
-
-                keyStatusLabel
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(String(localized: "System Prompt"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextEditor(text: llmBinding(\.systemPrompt))
+                TextEditor(text: presetBinding(\.correctionPrompt))
                     .font(.body)
                     .frame(minHeight: 90)
                     .overlay {
@@ -63,10 +35,10 @@ struct PresetSettingsSection: View {
                 HStack {
                     Text(String(localized: "Temperature"))
                     Spacer()
-                    Text(presetStore.defaultPreset.llm.normalizedTemperature, format: .number.precision(.fractionLength(1)))
+                    Text(normalizedCorrectionTemperature, format: .number.precision(.fractionLength(1)))
                         .foregroundStyle(.secondary)
                 }
-                Slider(value: llmBinding(\.temperature), in: 0...2, step: 0.1)
+                Slider(value: presetBinding(\.correctionTemperature), in: 0...2, step: 0.1)
             }
         } header: {
             Text("Default Preset")
@@ -75,29 +47,6 @@ struct PresetSettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear {
-            apiKeySaved = presetStore.hasAPIKey()
-        }
-    }
-
-    private var providerBinding: Binding<LLMProviderID> {
-        Binding(
-            get: { presetStore.defaultPreset.llm.provider },
-            set: { provider in
-                guard presetStore.defaultPreset.llm.provider != provider else { return }
-                presetStore.defaultPreset.llm.provider = provider
-                presetStore.resetProviderDefaults()
-                apiKey = ""
-                apiKeySaved = presetStore.hasAPIKey()
-            }
-        )
-    }
-
-    private func llmBinding<Value>(_ keyPath: WritableKeyPath<LLMConfig, Value>) -> Binding<Value> {
-        Binding(
-            get: { presetStore.defaultPreset.llm[keyPath: keyPath] },
-            set: { presetStore.defaultPreset.llm[keyPath: keyPath] = $0 }
-        )
     }
 
     private func presetBinding<Value>(_ keyPath: WritableKeyPath<ConfigPreset, Value>) -> Binding<Value> {
@@ -107,47 +56,25 @@ struct PresetSettingsSection: View {
         )
     }
 
-    private var keyStatusLabel: some View {
-        Group {
-            if presetStore.hasAPIKey() || apiKeySaved {
-                Label(String(localized: "Key saved"), systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if presetStore.defaultPreset.llm.usesLocalEndpoint && presetStore.defaultPreset.llm.provider == .openAICompatible {
-                Label(String(localized: "Key optional"), systemImage: "network")
-                    .foregroundStyle(.secondary)
-            } else {
-                Label(String(localized: "No key"), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-            }
-        }
-        .font(.caption)
+    private var llmInstanceBinding: Binding<UUID?> {
+        Binding(
+            get: { presetStore.defaultPreset.llmInstanceID },
+            set: { presetStore.defaultPreset.llmInstanceID = $0 }
+        )
     }
 
     private var footerText: String {
-        switch presetStore.defaultPreset.llm.provider {
-        case .openAICompatible:
-            String(localized: "The default preset stores LLM configuration. Speech engine, model, language, device, and knowledge-base settings stay independent.")
-        case .anthropic:
-            String(localized: "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults.")
-        }
+        String(localized: "The default preset stores correction behavior and the selected LLM instance. API keys, endpoints, and models are managed in LLM Instances.")
     }
 
-    private func saveAPIKey() {
-        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        apiKeySaved = presetStore.saveAPIKey(trimmed)
-        apiKey = ""
-    }
-
-    private func clearAPIKey() {
-        _ = presetStore.clearAPIKey()
-        apiKey = ""
-        apiKeySaved = false
+    private var normalizedCorrectionTemperature: Double {
+        min(max(presetStore.defaultPreset.correctionTemperature, 0), 2)
     }
 }
 
 struct LLMInstanceSettingsSection: View {
     @Bindable var instanceStore: LLMInstanceStore
+    @Bindable var presetStore: ConfigPresetStore
 
     @State private var apiKeys: [UUID: String] = [:]
     @State private var savedKeyIDs: Set<UUID> = []
@@ -279,7 +206,11 @@ struct LLMInstanceSettingsSection: View {
     }
 
     private func deleteInstance(_ id: UUID) {
-        _ = instanceStore.deleteInstance(id: id)
+        guard instanceStore.deleteInstance(id: id) else { return }
+        presetStore.replaceLLMInstanceSelection(
+            deletedID: id,
+            fallbackID: instanceStore.instances.first?.id
+        )
         apiKeys[id] = nil
         savedKeyIDs.remove(id)
     }

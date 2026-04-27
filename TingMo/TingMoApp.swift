@@ -4,17 +4,17 @@ import SwiftUI
 @main
 struct TingMoApp: App {
     @Environment(\.openWindow) private var openWindow
-    @State private var permissionManager = PermissionManager()
-    @State private var audioDeviceManager = AudioDeviceManager()
-    @State private var hotkeyManager = HotkeyManager()
+    @State private var permissionManager: PermissionManager
+    @State private var audioDeviceManager: AudioDeviceManager
+    @State private var hotkeyManager: HotkeyManager
     @State private var engineRegistry: EngineRegistry
-    @State private var statusIndicatorManager = StatusIndicatorManager()
-    @State private var languagePreference = LanguagePreference()
-    @State private var downloadSource = DownloadSourcePreference()
-    @State private var importedModelStore = ImportedModelStore()
-    @State private var presetStore = ConfigPresetStore()
-    @State private var llmInstanceStore = LLMInstanceStore()
-    @State private var contextSettings = ContextSettingsStore()
+    @State private var statusIndicatorManager: StatusIndicatorManager
+    @State private var languagePreference: LanguagePreference
+    @State private var downloadSource: DownloadSourcePreference
+    @State private var importedModelStore: ImportedModelStore
+    @State private var presetStore: ConfigPresetStore
+    @State private var llmInstanceStore: LLMInstanceStore
+    @State private var contextSettings: ContextSettingsStore
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
@@ -36,25 +36,37 @@ struct TingMoApp: App {
     }()
 
     init() {
+        let permissionManager = PermissionManager()
+        let audioDeviceManager = AudioDeviceManager()
+        let hotkeyManager = HotkeyManager()
+        let statusIndicatorManager = StatusIndicatorManager()
         let downloadSource = DownloadSourcePreference()
         let importedStore = ImportedModelStore()
-        let presetStore = ConfigPresetStore()
+        let defaultLLMInstanceID = UUID()
+        let llmInstanceStore = LLMInstanceStore(defaultID: defaultLLMInstanceID)
+        let presetStore = ConfigPresetStore(defaultLLMInstanceID: defaultLLMInstanceID)
         let contextSettings = ContextSettingsStore()
         let registry = EngineRegistry(
             downloadSource: downloadSource,
             importedModelStore: importedStore
         )
         let languagePreference = LanguagePreference()
+        _permissionManager = State(initialValue: permissionManager)
+        _audioDeviceManager = State(initialValue: audioDeviceManager)
+        _hotkeyManager = State(initialValue: hotkeyManager)
         _engineRegistry = State(initialValue: registry)
+        _statusIndicatorManager = State(initialValue: statusIndicatorManager)
         _languagePreference = State(initialValue: languagePreference)
         _downloadSource = State(initialValue: downloadSource)
         _importedModelStore = State(initialValue: importedStore)
         _presetStore = State(initialValue: presetStore)
+        _llmInstanceStore = State(initialValue: llmInstanceStore)
         _contextSettings = State(initialValue: contextSettings)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
             languagePreference: languagePreference,
             presetStore: presetStore,
+            llmInstanceStore: llmInstanceStore,
             contextSettings: contextSettings
         ))
     }
@@ -145,9 +157,10 @@ struct TingMoApp: App {
             Menu(String(localized: "Language")) {
                 ForEach(LanguagePreference.availableLanguages) { lang in
                     Button(lang.name) {
+                        presetStore.defaultPreset.languageCode = lang.code
                         languagePreference.current = lang.code
                     }
-                    .disabled(languagePreference.current == lang.code)
+                    .disabled(presetStore.defaultPreset.languageCode == lang.code)
                 }
             }
             .disabled(pipeline.state != .idle)
@@ -280,8 +293,8 @@ struct TingMoApp: App {
 
     @ViewBuilder
     private func engineMenuButton(engine: any SpeechEngine) -> some View {
-        let isActive = engineRegistry.activeEngineID == engine.info.id
-        let compatible = engine.supportsLanguage(languagePreference.current)
+        let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
+        let compatible = engine.supportsLanguage(presetStore.defaultPreset.languageCode)
         let ready = engine.info.isReady
 
         let title: String = {
@@ -301,6 +314,7 @@ struct TingMoApp: App {
         }()
 
         Button(title) {
+            presetStore.defaultPreset.speechEngineID = engine.info.id
             engineRegistry.setActiveEngine(engine.info.id)
         }
         .disabled(isActive || !compatible || !ready)
@@ -310,7 +324,7 @@ struct TingMoApp: App {
 
     @ViewBuilder
     private func modelMenuButton(engineID: String, model: WhisperKitEngine.WhisperModel) -> some View {
-        let isActive = engineRegistry.activeEngineID == engineID
+        let isActive = presetStore.defaultPreset.speechEngineID == engineID
         let downloaded = WhisperKitEngine.isModelDownloaded(model)
         let progress = engineRegistry.progress(for: engineID)
         let loading = engineRegistry.isLoading(engineID)
@@ -336,9 +350,12 @@ struct TingMoApp: App {
                 engineRegistry.clearDownloadError(for: engineID)
                 engineRegistry.downloadModel(engineID: engineID)
             } else if downloaded {
+                presetStore.defaultPreset.speechEngineID = engineID
                 engineRegistry.setActiveEngine(engineID)
             } else {
-                engineRegistry.downloadModel(engineID: engineID)
+                engineRegistry.downloadModel(engineID: engineID) {
+                    presetStore.defaultPreset.speechEngineID = engineID
+                }
             }
         }
         .disabled(progress != nil || loading || isActive)
@@ -353,7 +370,7 @@ struct TingMoApp: App {
         guard !didPrefetchModel else { return }
         didPrefetchModel = true
 
-        guard let whisper = engineRegistry.activeEngine as? WhisperKitEngine else { return }
+        guard let whisper = engineRegistry.engine(id: presetStore.defaultPreset.speechEngineID) as? WhisperKitEngine else { return }
         if whisper.info.isReady { return }
 
         Task.detached {

@@ -38,15 +38,15 @@ final class DictationPipeline {
     /// Last error surfaced by the pipeline, cleared on next start.
     var lastError: Error?
 
-    /// Language tag passed to the engine (ISO code). Read from the shared
-    /// `LanguagePreference` so settings changes propagate immediately.
+    /// Language tag passed to the engine (ISO code). Read from the active preset.
     var language: String {
-        languagePreference.current
+        presetStore.defaultPreset.languageCode
     }
 
     private let registry: EngineRegistry
     private let languagePreference: LanguagePreference
     private let presetStore: ConfigPresetStore
+    private let llmInstanceStore: LLMInstanceStore
     private let contextSettings: ContextSettingsStore
     private let correctionService = LLMCorrectionService()
     private let capture = AudioCapture()
@@ -55,11 +55,13 @@ final class DictationPipeline {
         registry: EngineRegistry,
         languagePreference: LanguagePreference,
         presetStore: ConfigPresetStore,
+        llmInstanceStore: LLMInstanceStore,
         contextSettings: ContextSettingsStore
     ) {
         self.registry = registry
         self.languagePreference = languagePreference
         self.presetStore = presetStore
+        self.llmInstanceStore = llmInstanceStore
         self.contextSettings = contextSettings
     }
 
@@ -69,7 +71,7 @@ final class DictationPipeline {
     func start(preferredDeviceUID: String? = nil) throws {
         guard state == .idle else { throw PipelineError.alreadyRunning }
 
-        guard let engine = registry.activeEngine else {
+        guard let engine = currentSpeechEngine() else {
             throw PipelineError.notReady(reason: "No speech engine selected.")
         }
         guard engine.info.isReady else {
@@ -133,14 +135,14 @@ final class DictationPipeline {
     private func runTranscription(audioURL: URL) async {
         defer { try? FileManager.default.removeItem(at: audioURL) }
 
-        guard let engine = registry.activeEngine else {
+        guard let engine = currentSpeechEngine() else {
             await finish(error: PipelineError.notReady(reason: "No active engine."))
             return
         }
 
         do {
-            if engine is WhisperKitEngine {
-                try await registry.loadActiveEngine()
+            if let whisper = engine as? WhisperKitEngine {
+                try await whisper.loadModel()
             }
 
             let stream = try await engine.transcribe(audioURL: audioURL, language: language)
@@ -172,8 +174,11 @@ final class DictationPipeline {
     }
 
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
-        let llmConfig = presetStore.defaultPreset.llm
-        guard llmConfig.enabled else { return (transcript, nil) }
+        let preset = presetStore.defaultPreset
+        guard preset.correctionEnabled else { return (transcript, nil) }
+        guard let llmConfig = llmInstanceStore.llmConfig(for: preset) else {
+            return (transcript, PipelineError.notReady(reason: "No LLM correction instance selected."))
+        }
 
         do {
             let context = ContextAggregator(settings: contextSettings).collect()
@@ -195,5 +200,9 @@ final class DictationPipeline {
     private func finish(error: Error?) async {
         lastError = error
         state = .idle
+    }
+
+    private func currentSpeechEngine() -> (any SpeechEngine)? {
+        registry.engine(id: presetStore.defaultPreset.speechEngineID)
     }
 }

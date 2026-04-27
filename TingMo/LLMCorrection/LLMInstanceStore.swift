@@ -43,6 +43,18 @@ final class LLMInstanceStore {
            !decoded.instances.isEmpty {
             instances = decoded.instances
             selectedInstanceID = decoded.selectedInstanceID
+        } else if let legacyConfig = ConfigPresetStore.legacyLLMConfig(defaults: defaults) {
+            let instance = LLMInstance(
+                id: defaultID,
+                provider: legacyConfig.provider,
+                endpoint: legacyConfig.endpoint,
+                model: legacyConfig.model,
+                keychainService: LLMInstance.keychainService(for: defaultID)
+            )
+            instances = [instance]
+            selectedInstanceID = instance.id
+            migrateAPIKey(from: legacyConfig, to: instance)
+            save()
         } else {
             let defaultInstance = LLMInstance.defaultInstance(id: defaultID)
             instances = [defaultInstance]
@@ -57,6 +69,14 @@ final class LLMInstanceStore {
 
     func instance(id: UUID) -> LLMInstance? {
         instances.first { $0.id == id }
+    }
+
+    func llmConfig(for preset: ConfigPreset) -> LLMConfig? {
+        guard let llmInstanceID = preset.llmInstanceID,
+              let instance = instance(id: llmInstanceID)
+        else { return nil }
+
+        return preset.llmConfig(resolving: instance)
     }
 
     func upsert(_ instance: LLMInstance) {
@@ -131,5 +151,16 @@ final class LLMInstanceStore {
         let state = StoredState(instances: instances, selectedInstanceID: selectedInstanceID)
         guard let data = try? JSONEncoder().encode(state) else { return }
         defaults.set(data, forKey: storageKey)
+    }
+
+    private func migrateAPIKey(from legacyConfig: LLMConfig, to instance: LLMInstance) {
+        let legacyService = legacyConfig.effectiveKeychainService
+        guard legacyService != instance.keychainService,
+              let value = getAPIKey(legacyService),
+              !value.isEmpty,
+              saveAPIKeyValue(value, instance.keychainService)
+        else { return }
+
+        _ = deleteAPIKey(legacyService)
     }
 }

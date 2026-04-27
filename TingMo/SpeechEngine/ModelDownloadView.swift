@@ -9,13 +9,19 @@ import SwiftUI
 struct ModelDownloadView: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var downloadSource: DownloadSourcePreference
+    @Bindable var presetStore: ConfigPresetStore
 
     @State private var endpointPresetID: String
     @State private var customEndpoint: String
 
-    init(engineRegistry: EngineRegistry, downloadSource: DownloadSourcePreference) {
+    init(
+        engineRegistry: EngineRegistry,
+        downloadSource: DownloadSourcePreference,
+        presetStore: ConfigPresetStore
+    ) {
         self.engineRegistry = engineRegistry
         self.downloadSource = downloadSource
+        self.presetStore = presetStore
         _endpointPresetID = State(initialValue: downloadSource.matchingPresetID)
         _customEndpoint = State(initialValue: downloadSource.endpoint)
     }
@@ -143,6 +149,10 @@ struct ModelDownloadView: View {
             } else if downloaded {
                 Button(String(localized: "Delete"), role: .destructive) {
                     _ = engineRegistry.deleteDownloadedModel(engineID: engineID)
+                    presetStore.replaceSpeechEngineSelection(
+                        deletedID: engineID,
+                        fallbackID: WhisperKitEngine.defaultModelEngineID
+                    )
                 }
             } else {
                 Button(String(localized: "Download")) {

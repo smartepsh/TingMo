@@ -17,6 +17,10 @@ final class EngineRegistry {
         engines.first { $0.info.id == activeEngineID }
     }
 
+    func engine(id: String) -> (any SpeechEngine)? {
+        engines.first { $0.info.id == id }
+    }
+
     /// Download progress for models (engine ID → progress 0.0–1.0).
     var downloadProgress: [String: Double] = [:]
 
@@ -179,7 +183,11 @@ final class EngineRegistry {
     /// becomes active. Safe to call twice — returns immediately if already
     /// downloading.
     @MainActor
-    func downloadModel(engineID: String, makeActiveWhenDone: Bool = true) {
+    func downloadModel(
+        engineID: String,
+        makeActiveWhenDone: Bool = true,
+        onActiveWhenDone: (() -> Void)? = nil
+    ) {
         guard let engine = engines.first(where: { $0.info.id == engineID }) else { return }
         guard let whisper = engine as? WhisperKitEngine else { return }
         guard downloadProgress[engineID] == nil else { return }
@@ -207,6 +215,7 @@ final class EngineRegistry {
                 if makeActiveWhenDone {
                     await MainActor.run { [weak self] in
                         self?.setActiveEngine(engineID)
+                        onActiveWhenDone?()
                     }
                 }
             } catch {
