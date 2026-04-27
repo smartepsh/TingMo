@@ -96,74 +96,64 @@ struct TingMoApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Text("TingMo 听墨")
-                .font(.headline)
-                .onAppear {
-                    guard !didCheckOnboarding else { return }
-                    didCheckOnboarding = true
-                    if !hasCompletedOnboarding {
-                        openWindow(id: "onboarding-window")
-                    }
-                }
-
-            Divider()
-
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            let inputName = audioDeviceManager.firstOnlineDevice()?.name
-                ?? String(localized: "System Default")
-            Text(String(localized: "Input: \(inputName)"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let err = pipeline.lastError {
-                Text(err.localizedDescription)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Divider()
-
             Button(primaryButtonTitle) {
                 toggleRecording()
             }
             .keyboardShortcut("r", modifiers: .command)
             .disabled(pipeline.state == .transcribing)
+            .onAppear {
+                guard !didCheckOnboarding else { return }
+                didCheckOnboarding = true
+                if !hasCompletedOnboarding {
+                    openWindow(id: "onboarding-window")
+                }
+            }
 
             Divider()
 
-            Menu(String(localized: "Engine")) {
-                ForEach(engineRegistry.engines, id: \.info.id) { engine in
-                    engineMenuButton(engine: engine)
-                }
-            }
-            .disabled(pipeline.state != .idle)
-
-            Menu(String(localized: "Speech Model")) {
-                ForEach(WhisperKitEngine.availableModels) { model in
-                    let engineID = "\(WhisperKitEngine.engineID)-\(model.id)"
-                    modelMenuButton(engineID: engineID, model: model)
-                }
-
-                Divider()
-
-                Button(String(localized: "Parakeet (English) — Coming Soon")) {}
+            Menu(String(localized: "Preset: \(presetStore.defaultPreset.name)")) {
+                Button("✓ \(presetStore.defaultPreset.name)") {}
                     .disabled(true)
             }
             .disabled(pipeline.state != .idle)
 
+            Text(String(localized: "\(presetStore.defaultPreset.name) Settings"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Menu(String(localized: "Language")) {
                 ForEach(LanguagePreference.availableLanguages) { lang in
-                    Button(lang.name) {
-                        presetStore.defaultPreset.languageCode = lang.code
-                        languagePreference.current = lang.code
-                    }
-                    .disabled(presetStore.defaultPreset.languageCode == lang.code)
+                    languageMenuButton(language: lang)
                 }
             }
             .disabled(pipeline.state != .idle)
+
+            Menu(String(localized: "Recognition Engine")) {
+                ForEach(engineRegistry.engines, id: \.info.id) { engine in
+                    recognitionEngineMenuButton(engine: engine)
+                }
+            }
+            .disabled(pipeline.state != .idle)
+
+            Menu(String(localized: "Correction Engine")) {
+                Button(correctionEngineTitle(instance: nil)) {
+                    presetStore.defaultPreset.llmInstanceID = nil
+                }
+                .disabled(presetStore.defaultPreset.llmInstanceID == nil)
+
+                ForEach(llmInstanceStore.instances) { instance in
+                    correctionEngineMenuButton(instance: instance)
+                }
+            }
+            .disabled(pipeline.state != .idle)
+
+            if let err = pipeline.lastError {
+                Divider()
+
+                Text(err.localizedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
             Divider()
 
@@ -289,28 +279,37 @@ struct TingMoApp: App {
             }
     }
 
-    // MARK: - Engine menu
+    // MARK: - Preset quick editor
 
     @ViewBuilder
-    private func engineMenuButton(engine: any SpeechEngine) -> some View {
+    private func languageMenuButton(language: LanguagePreference.Language) -> some View {
+        let isActive = presetStore.defaultPreset.languageCode == language.code
+
+        Button(menuTitle(language.name, isActive: isActive)) {
+            presetStore.defaultPreset.languageCode = language.code
+            languagePreference.current = language.code
+        }
+        .disabled(isActive)
+    }
+
+    @ViewBuilder
+    private func recognitionEngineMenuButton(engine: any SpeechEngine) -> some View {
         let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
         let compatible = engine.supportsLanguage(presetStore.defaultPreset.languageCode)
         let ready = engine.info.isReady
 
         let title: String = {
-            var parts: [String] = []
-            if isActive { parts.append("✓") }
-            parts.append(engine.info.name)
+            var label = menuTitle(engine.info.name, isActive: isActive)
             if !compatible {
-                parts.append("— \(String(localized: "Incompatible"))")
+                label += " — \(String(localized: "Incompatible"))"
             } else if !ready {
                 if engine.info.type == .remote {
-                    parts.append("— \(String(localized: "Missing API Key"))")
+                    label += " — \(String(localized: "Missing API Key"))"
                 } else {
-                    parts.append("— \(String(localized: "Not Downloaded"))")
+                    label += " — \(String(localized: "Not Downloaded"))"
                 }
             }
-            return parts.joined(separator: " ")
+            return label
         }()
 
         Button(title) {
@@ -320,45 +319,29 @@ struct TingMoApp: App {
         .disabled(isActive || !compatible || !ready)
     }
 
-    // MARK: - Model menu
-
     @ViewBuilder
-    private func modelMenuButton(engineID: String, model: WhisperKitEngine.WhisperModel) -> some View {
-        let isActive = presetStore.defaultPreset.speechEngineID == engineID
-        let downloaded = WhisperKitEngine.isModelDownloaded(model)
-        let progress = engineRegistry.progress(for: engineID)
-        let loading = engineRegistry.isLoading(engineID)
-        let error = engineRegistry.downloadError(for: engineID)
+    private func correctionEngineMenuButton(instance: LLMInstance) -> some View {
+        let isActive = presetStore.defaultPreset.llmInstanceID == instance.id
 
-        let title: String = {
-            if let err = error {
-                return "\(model.name) — \(String(localized: "Failed")): \(err)"
-            }
-            if let p = progress {
-                return "\(model.name) — \(Int(p * 100))%"
-            }
-            if loading {
-                return "\(model.name) — \(String(localized: "Loading…"))"
-            }
-            if isActive { return "✓ \(model.name) (\(model.size))" }
-            if downloaded { return "\(model.name) (\(model.size))" }
-            return "\(model.name) (\(model.size)) — \(String(localized: "Download"))"
-        }()
-
-        Button(title) {
-            if error != nil {
-                engineRegistry.clearDownloadError(for: engineID)
-                engineRegistry.downloadModel(engineID: engineID)
-            } else if downloaded {
-                presetStore.defaultPreset.speechEngineID = engineID
-                engineRegistry.setActiveEngine(engineID)
-            } else {
-                engineRegistry.downloadModel(engineID: engineID) {
-                    presetStore.defaultPreset.speechEngineID = engineID
-                }
-            }
+        Button(correctionEngineTitle(instance: instance)) {
+            presetStore.defaultPreset.llmInstanceID = instance.id
         }
-        .disabled(progress != nil || loading || isActive)
+        .disabled(isActive)
+    }
+
+    private func correctionEngineTitle(instance: LLMInstance?) -> String {
+        guard let instance else {
+            return menuTitle(String(localized: "Off"), isActive: presetStore.defaultPreset.llmInstanceID == nil)
+        }
+
+        return menuTitle(
+            "\(instance.displayName) (\(instance.provider.displayName))",
+            isActive: presetStore.defaultPreset.llmInstanceID == instance.id
+        )
+    }
+
+    private func menuTitle(_ title: String, isActive: Bool) -> String {
+        isActive ? "✓ \(title)" : title
     }
 
     // MARK: - Model prefetch (M1 hotest convenience)
