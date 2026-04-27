@@ -222,6 +222,7 @@ struct TingMoApp: App {
                 contextSettings: contextSettings
             )
         }
+        .defaultSize(width: 860, height: 700)
 
         Window(String(localized: "Setup Wizard"), id: "onboarding-window") {
             OnboardingView(permissionManager: permissionManager)
