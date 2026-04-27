@@ -21,6 +21,15 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            SettingsAreaHeader(title: String(localized: "Presets"))
+
+            PresetSettingsSection(
+                presetStore: presetStore,
+                instanceStore: llmInstanceStore
+            )
+
+            SettingsAreaHeader(title: String(localized: "Speech"))
+
             EngineSettingsView(
                 engineRegistry: engineRegistry,
                 languagePreference: languagePreference,
@@ -46,24 +55,23 @@ struct SettingsView: View {
                 )
             }
 
-            PresetSettingsSection(
-                presetStore: presetStore,
-                instanceStore: llmInstanceStore
-            )
-
-            LLMInstanceSettingsSection(
-                instanceStore: llmInstanceStore,
-                presetStore: presetStore
-            )
-
-            ContextSettingsSection(settings: contextSettings)
-
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)
                     .frame(minHeight: 100)
             } header: {
                 Text("Audio Devices")
             }
+
+            SettingsAreaHeader(title: String(localized: "LLM Instances"))
+
+            LLMInstanceSettingsSection(
+                instanceStore: llmInstanceStore,
+                presetStore: presetStore
+            )
+
+            SettingsAreaHeader(title: String(localized: "Behavior"))
+
+            ContextSettingsSection(settings: contextSettings)
 
             HotkeySettingsView(hotkeyManager: hotkeyManager)
 
@@ -99,6 +107,8 @@ struct SettingsView: View {
                 Text("Status Indicator")
             }
 
+            SettingsAreaHeader(title: String(localized: "Advanced"))
+
             Section {
                 ForEach(PermissionType.allCases) { type in
                     PermissionStatusView(
@@ -130,6 +140,19 @@ struct SettingsView: View {
         }
         .onDisappear {
             permissionManager.stopPolling()
+        }
+    }
+}
+
+private struct SettingsAreaHeader: View {
+    let title: String
+
+    var body: some View {
+        Section {} header: {
+            Text(title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
         }
     }
 }
