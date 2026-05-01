@@ -85,7 +85,7 @@ struct LLMInstanceTests {
         deletedService = nil
         assert(keyStore.updateProvider(for: firstID, provider: .anthropic), "updateProvider should update an existing instance")
         assert(keyStore.instance(id: firstID)?.provider == .anthropic, "updateProvider should change provider")
-        assert(keyStore.instance(id: firstID)?.endpoint == LLMProviderID.anthropic.defaultEndpoint, "updateProvider should reset endpoint")
+        assert(keyStore.instance(id: firstID)?.endpoint == LLMProviderID.anthropic.defaultBaseURL, "updateProvider should reset endpoint")
         assert(keyStore.instance(id: firstID)?.model == LLMProviderID.anthropic.defaultModel, "updateProvider should reset model")
         assert(deletedService == defaultInstance.keychainService, "updateProvider should clear the previous provider key")
 

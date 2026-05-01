@@ -26,10 +26,20 @@ struct LLMInstance: Identifiable, Codable, Equatable, Sendable {
         self.keychainService = keychainService ?? Self.keychainService(for: id)
     }
 
+    /// The stored base URL, trimmed and stripped of the endpoint path if an
+    /// older version saved the full URL.
+    var effectiveBaseURL: String {
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return provider.defaultBaseURL }
+        if trimmed.hasSuffix(provider.endpointPath) {
+            return String(trimmed.dropLast(provider.endpointPath.count))
+        }
+        return trimmed
+    }
+
+    /// Full endpoint URL computed from the base URL and the provider's path.
     var effectiveEndpoint: String {
-        endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? provider.defaultEndpoint
-            : endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        effectiveBaseURL + provider.endpointPath
     }
 
     var effectiveModel: String {

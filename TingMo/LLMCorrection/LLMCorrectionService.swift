@@ -11,8 +11,8 @@ struct LLMCorrectionService {
         )
 
         let response: LLMCorrectionResponse
-        switch config.provider {
-        case .openAICompatible:
+        switch config.provider.wireFormat {
+        case .openai:
             response = try await OpenAICompatibleLLMProvider().correct(request)
         case .anthropic:
             response = try await AnthropicLLMProvider().correct(request)

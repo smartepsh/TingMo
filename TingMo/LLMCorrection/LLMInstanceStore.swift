@@ -77,10 +77,22 @@ final class LLMInstanceStore {
 
     @discardableResult
     func addInstance(provider: LLMProviderID = .openAICompatible) -> LLMInstance {
-        let instance = LLMInstance(provider: provider)
+        let defaultName = nextDefaultName(for: provider)
+        let instance = LLMInstance(displayName: defaultName, provider: provider)
         instances.append(instance)
         selectedInstanceID = instance.id
         return instance
+    }
+
+    private func nextDefaultName(for provider: LLMProviderID) -> String {
+        let base = provider.displayName
+        let existing = Set(instances.filter { $0.provider == provider }.map(\.displayName))
+        var index = 1
+        while true {
+            let candidate = index == 1 ? base : "\(base) \(index)"
+            if !existing.contains(candidate) { return candidate }
+            index += 1
+        }
     }
 
     @discardableResult
@@ -108,7 +120,7 @@ final class LLMInstanceStore {
 
         let usedProviderName = instance.displayName == instance.provider.displayName
         instance.provider = provider
-        instance.endpoint = provider.defaultEndpoint
+        instance.endpoint = provider.defaultBaseURL
         instance.model = provider.defaultModel
         if usedProviderName {
             instance.displayName = provider.displayName

@@ -105,11 +105,12 @@ struct LLMInstanceSettingsSection: View {
     @State private var activeDeleteID: UUID?
     @State private var renamingID: UUID?
     @State private var renameText: String = ""
+    @State private var expandedInstanceID: UUID?
 
     var body: some View {
         Section {
             ForEach(instanceStore.instances) { instance in
-                DisclosureGroup {
+                DisclosureGroup(isExpanded: expandedBinding(for: instance.id)) {
                     VStack(alignment: .leading, spacing: 8) {
                         Picker(String(localized: "Provider"), selection: providerBinding(for: instance.id)) {
                             ForEach(LLMProviderID.allCases) { provider in
@@ -117,7 +118,7 @@ struct LLMInstanceSettingsSection: View {
                             }
                         }
 
-                        TextField(String(localized: "Endpoint"), text: textBinding(for: instance.id, \.endpoint))
+                        TextField(String(localized: "Base URL"), text: textBinding(for: instance.id, \.endpoint))
                             .textFieldStyle(.roundedBorder)
                             .textContentType(.URL)
 
@@ -172,6 +173,7 @@ struct LLMInstanceSettingsSection: View {
                 Button {
                     let instance = instanceStore.addInstance()
                     apiKeys[instance.id] = ""
+                    expandedInstanceID = instance.id
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -182,6 +184,13 @@ struct LLMInstanceSettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func expandedBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { expandedInstanceID == id },
+            set: { expandedInstanceID = $0 ? id : nil }
+        )
     }
 
     private func renameBinding(for id: UUID) -> Binding<Bool> {
