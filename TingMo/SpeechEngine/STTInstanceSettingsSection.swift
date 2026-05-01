@@ -126,6 +126,7 @@ struct STTInstanceSettingsSection: View {
                             let instance = instanceStore.addInstance(provider: provider)
                             apiKeys[instance.id] = ""
                             expandedInstanceID = instance.id
+                            engineRegistry.refreshRemoteSTTEngines()
                         }
                     }
                 } label: {
@@ -162,9 +163,10 @@ struct STTInstanceSettingsSection: View {
             set: { provider in
                 guard var instance = instanceStore.instance(id: id) else { return }
                 guard instance.provider != provider else { return }
+                let oldProvider = instance.provider
                 _ = instanceStore.clearAPIKey(for: instance)
                 instance.provider = provider
-                let usedDefaultName = instance.displayName == instance.provider.displayName
+                let usedDefaultName = instance.displayName == oldProvider.defaultInstanceName
                     || instance.displayName == ""
                 if usedDefaultName {
                     instance.displayName = provider.defaultInstanceName

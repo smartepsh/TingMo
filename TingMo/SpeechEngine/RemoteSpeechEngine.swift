@@ -417,15 +417,15 @@ extension RemoteSpeechEngine {
     /// Create a RemoteSpeechEngine from an STTInstance.
     /// Builds the appropriate RemoteEngineConfig based on the instance's provider.
     convenience init(instance: STTInstance) {
-        let config = Self.config(for: instance.provider, keychainService: instance.keychainService)
+        let config = Self.config(for: instance.provider, instanceID: instance.id, keychainService: instance.keychainService)
         self.init(config: config)
     }
 
-    private static func config(for provider: STTProviderID, keychainService: String) -> RemoteEngineConfig {
+    private static func config(for provider: STTProviderID, instanceID: UUID, keychainService: String) -> RemoteEngineConfig {
         switch provider {
         case .groq:
             RemoteEngineConfig(
-                id: "stt-instance-groq",
+                id: "stt-instance-\(instanceID.uuidString)",
                 name: provider.defaultInstanceName,
                 endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
                 modelFieldName: "model",
@@ -439,7 +439,7 @@ extension RemoteSpeechEngine {
             )
         case .elevenlabs:
             RemoteEngineConfig(
-                id: "stt-instance-elevenlabs",
+                id: "stt-instance-\(instanceID.uuidString)",
                 name: provider.defaultInstanceName,
                 endpoint: "https://api.elevenlabs.io/v1/speech-to-text",
                 modelFieldName: "model_id",
