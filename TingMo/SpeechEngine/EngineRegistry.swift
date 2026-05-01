@@ -43,6 +43,9 @@ final class EngineRegistry {
     /// built-in variants after a restart.
     private let importedModelStore: ImportedModelStore
 
+    /// Provides remote STT instances that are dynamically registered as engines.
+    private let sttInstanceStore: STTInstanceStore
+
     /// Whether a download is in progress.
     var isDownloading: Bool {
         !downloadProgress.isEmpty
@@ -60,10 +63,12 @@ final class EngineRegistry {
 
     init(
         downloadSource: DownloadSourcePreference,
-        importedModelStore: ImportedModelStore
+        importedModelStore: ImportedModelStore,
+        sttInstanceStore: STTInstanceStore
     ) {
         self.downloadSource = downloadSource
         self.importedModelStore = importedModelStore
+        self.sttInstanceStore = sttInstanceStore
         let defaultID = WhisperKitEngine.defaultModelEngineID
         activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
@@ -83,14 +88,31 @@ final class EngineRegistry {
             register(WhisperKitEngine(model: model))
         }
 
-        // Remote engines — readiness is driven by whether an API key is
-        // present in the keychain. Engines stay registered even when the
-        // key is missing so the settings UI can display them.
-        register(RemoteSpeechEngine(config: .groq))
-        register(RemoteSpeechEngine(config: .elevenlabs))
+        // Remote engines from STTInstanceStore
+        registerRemoteSTTEngines()
 
         // Parakeet — English-only, CoreML
         register(ParakeetEngine(isReady: false))
+    }
+
+    private func registerRemoteSTTEngines() {
+        // Remove existing remote engines
+        engines.removeAll { $0 is RemoteSpeechEngine }
+
+        // Create engines from instances
+        for instance in sttInstanceStore.instances {
+            let engine = RemoteSpeechEngine(instance: instance)
+            register(engine)
+        }
+    }
+
+    /// Re-create remote STT engines from the current STTInstanceStore state.
+    func refreshRemoteSTTEngines() {
+        registerRemoteSTTEngines()
+        // If the active engine was a remote one that was removed, fall back
+        if activeEngine == nil, let fallback = engines.first(where: { $0.info.id == ConfigPreset.defaultSpeechEngineID }) {
+            activeEngineID = fallback.info.id
+        }
     }
 
     /// Re-query the keychain for every remote engine and update `isReady`.
