@@ -28,9 +28,9 @@ final class LLMInstanceStore {
         defaults: UserDefaults = .standard,
         storageKey: String = LLMInstanceStore.storageKey,
         defaultID: UUID = UUID(),
-        getAPIKey: @escaping (String) -> String? = { KeychainStore.get(service: $0) },
-        saveAPIKey: @escaping (String, String) -> Bool = { KeychainStore.set($0, for: $1) },
-        deleteAPIKey: @escaping (String) -> Bool = { KeychainStore.delete(service: $0) }
+        getAPIKey: @escaping (String) -> String? = { EncryptedKeyStore.get(service: $0) },
+        saveAPIKey: @escaping (String, String) -> Bool = { EncryptedKeyStore.set($0, for: $1) },
+        deleteAPIKey: @escaping (String) -> Bool = { EncryptedKeyStore.delete(service: $0) }
     ) {
         self.defaults = defaults
         self.storageKey = storageKey
@@ -43,18 +43,6 @@ final class LLMInstanceStore {
            !decoded.instances.isEmpty {
             instances = decoded.instances
             selectedInstanceID = decoded.selectedInstanceID
-        } else if let legacyConfig = ConfigPresetStore.legacyLLMConfig(defaults: defaults) {
-            let instance = LLMInstance(
-                id: defaultID,
-                provider: legacyConfig.provider,
-                endpoint: legacyConfig.endpoint,
-                model: legacyConfig.model,
-                keychainService: LLMInstance.keychainService(for: defaultID)
-            )
-            instances = [instance]
-            selectedInstanceID = instance.id
-            migrateAPIKey(from: legacyConfig, to: instance)
-            save()
         } else {
             let defaultInstance = LLMInstance.defaultInstance(id: defaultID)
             instances = [defaultInstance]
@@ -97,8 +85,7 @@ final class LLMInstanceStore {
 
     @discardableResult
     func deleteInstance(id: UUID) -> Bool {
-        guard instances.count > 1,
-              let index = instances.firstIndex(where: { $0.id == id })
+        guard let index = instances.firstIndex(where: { $0.id == id })
         else { return false }
 
         let instance = instances[index]
@@ -151,16 +138,5 @@ final class LLMInstanceStore {
         let state = StoredState(instances: instances, selectedInstanceID: selectedInstanceID)
         guard let data = try? JSONEncoder().encode(state) else { return }
         defaults.set(data, forKey: storageKey)
-    }
-
-    private func migrateAPIKey(from legacyConfig: LLMConfig, to instance: LLMInstance) {
-        let legacyService = legacyConfig.effectiveKeychainService
-        guard legacyService != instance.keychainService,
-              let value = getAPIKey(legacyService),
-              !value.isEmpty,
-              saveAPIKeyValue(value, instance.keychainService)
-        else { return }
-
-        _ = deleteAPIKey(legacyService)
     }
 }

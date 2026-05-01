@@ -3,17 +3,13 @@ import SwiftUI
 /// Settings panel section for engine + language selection.
 ///
 /// Layout:
-///   • Language picker (applies to every engine)
+///   • Input Languages multi-select (for engine filtering)
+///   • Compatible engines list
 ///   • Engine list grouped by Local / Remote
-///   • Compatibility warning if active engine can't serve current language
 struct EngineSettingsView: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var languagePreference: LanguagePreference
     @Bindable var presetStore: ConfigPresetStore
-
-    private var selectedLanguageCode: String {
-        presetStore.defaultPreset.languageCode
-    }
 
     private var selectedSpeechEngine: (any SpeechEngine)? {
         engineRegistry.engine(id: presetStore.defaultPreset.speechEngineID)
@@ -21,54 +17,66 @@ struct EngineSettingsView: View {
 
     var body: some View {
         Section {
-            Picker(String(localized: "Language"), selection: languageBinding) {
-                ForEach(LanguagePreference.availableLanguages) { lang in
-                    Text(lang.name).tag(lang.code)
-                }
-            }
-
-            if let active = selectedSpeechEngine,
-               !active.supportsLanguage(selectedLanguageCode)
-            {
-                Label(
-                    String(localized: "\(active.info.name) does not support \(LanguagePreference.displayName(for: selectedLanguageCode)). Pick another engine or language."),
-                    systemImage: "exclamationmark.triangle"
-                )
-                .font(.caption)
-                .foregroundStyle(.orange)
+            ForEach(LanguagePreference.availableLanguages) { lang in
+                Toggle(lang.name, isOn: languageBinding(for: lang.code))
             }
         } header: {
-            Text("Language")
+            Text("Input Languages")
+        } footer: {
+            Text("Select languages you will speak. Engines that support all selected languages are shown below.")
         }
 
         Section {
-            ForEach(localEngines, id: \.info.id) { engine in
-                engineRow(for: engine)
+            ForEach(compatibleEngines, id: \.info.id) { engine in
+                engineRow(for: engine, isCompatible: true)
             }
-        } header: {
-            Text("Local Engines")
-        }
-
-        Section {
-            ForEach(remoteEngines, id: \.info.id) { engine in
-                engineRow(for: engine)
-            }
-            if remoteEngines.isEmpty {
-                Text(String(localized: "No remote engine configured. Add an API key below."))
+            if compatibleEngines.isEmpty {
+                Text(String(localized: "No engines support all selected languages."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Remote Engines")
+            Text("Compatible Engines")
+        }
+
+        if !incompatibleEngines.isEmpty {
+            Section {
+                ForEach(incompatibleEngines, id: \.info.id) { engine in
+                    engineRow(for: engine, isCompatible: false)
+                }
+            } header: {
+                Text("Incompatible Engines")
+            }
+        }
+    }
+
+    // MARK: - Engine Filtering
+
+    private var compatibleEngines: [any SpeechEngine] {
+        let selected = languagePreference.selectedLanguages
+        if selected.isEmpty {
+            return engineRegistry.engines
+        }
+        return engineRegistry.engines.filter { engine in
+            selected.allSatisfy { engine.supportsLanguage($0) }
+        }
+    }
+
+    private var incompatibleEngines: [any SpeechEngine] {
+        let selected = languagePreference.selectedLanguages
+        if selected.isEmpty {
+            return []
+        }
+        return engineRegistry.engines.filter { engine in
+            !selected.allSatisfy { engine.supportsLanguage($0) }
         }
     }
 
     // MARK: - Rows
 
     @ViewBuilder
-    private func engineRow(for engine: any SpeechEngine) -> some View {
+    private func engineRow(for engine: any SpeechEngine, isCompatible: Bool) -> some View {
         let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
-        let compatible = engine.supportsLanguage(selectedLanguageCode)
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -86,8 +94,8 @@ struct EngineSettingsView: View {
                     if let size = engine.info.modelSize {
                         Text(size)
                     }
-                    if !compatible {
-                        Text(String(localized: "Incompatible with \(LanguagePreference.displayName(for: selectedLanguageCode))"))
+                    if !isCompatible {
+                        Text(String(localized: "Does not support all selected languages"))
                             .foregroundStyle(.orange)
                     } else if !engine.info.isReady {
                         Text(statusLabel(for: engine))
@@ -100,11 +108,11 @@ struct EngineSettingsView: View {
 
             Spacer()
 
-            Button(activateButtonTitle(for: engine, isActive: isActive, compatible: compatible)) {
+            Button(activateButtonTitle(for: engine, isActive: isActive, compatible: isCompatible)) {
                 presetStore.defaultPreset.speechEngineID = engine.info.id
                 engineRegistry.setActiveEngine(engine.info.id)
             }
-            .disabled(isActive || !compatible || !engine.info.isReady)
+            .disabled(isActive || !isCompatible || !engine.info.isReady)
         }
     }
 
@@ -125,22 +133,17 @@ struct EngineSettingsView: View {
         return String(localized: "Use")
     }
 
-    // MARK: - Grouping
+    // MARK: - Bindings
 
-    private var localEngines: [any SpeechEngine] {
-        engineRegistry.engines.filter { $0.info.type == .local }
-    }
-
-    private var remoteEngines: [any SpeechEngine] {
-        engineRegistry.engines.filter { $0.info.type == .remote }
-    }
-
-    private var languageBinding: Binding<String> {
+    private func languageBinding(for code: String) -> Binding<Bool> {
         Binding(
-            get: { presetStore.defaultPreset.languageCode },
-            set: { code in
-                presetStore.defaultPreset.languageCode = code
-                languagePreference.current = code
+            get: { languagePreference.selectedLanguages.contains(code) },
+            set: { isSelected in
+                if isSelected {
+                    languagePreference.selectedLanguages.insert(code)
+                } else {
+                    languagePreference.selectedLanguages.remove(code)
+                }
             }
         )
     }

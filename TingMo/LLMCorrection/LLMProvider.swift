@@ -61,7 +61,7 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 /// User-editable correction settings. API keys are intentionally referenced
-/// by Keychain service only; secret values never enter Codable presets.
+/// by service identifier only; secret values never enter Codable presets.
 struct LLMConfig: Codable, Equatable, Sendable {
     var enabled: Bool
     var provider: LLMProviderID

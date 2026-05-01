@@ -15,7 +15,7 @@ struct AnthropicLLMProvider: LLMProvider {
         let transcript = request.trimmedTranscript
         guard !transcript.isEmpty else { throw LLMProviderError.emptyTranscript }
 
-        guard let apiKey = KeychainStore.get(service: request.config.effectiveKeychainService),
+        guard let apiKey = EncryptedKeyStore.get(service: request.config.effectiveKeychainService),
               !apiKey.isEmpty
         else {
             throw LLMProviderError.missingAPIKey

@@ -19,10 +19,10 @@ struct LLMInstance: Identifiable, Codable, Equatable, Sendable {
         let trimmedName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         self.id = id
-        self.displayName = trimmedName.isEmpty ? provider.displayName : trimmedName
+        self.displayName = trimmedName
         self.provider = provider
-        self.endpoint = endpoint ?? provider.defaultEndpoint
-        self.model = model ?? provider.defaultModel
+        self.endpoint = endpoint ?? ""
+        self.model = model ?? ""
         self.keychainService = keychainService ?? Self.keychainService(for: id)
     }
 

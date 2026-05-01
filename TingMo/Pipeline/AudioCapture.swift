@@ -59,6 +59,9 @@ final class AudioCapture {
             }
         }
 
+        // Prepare engine to sync internal state after device change
+        engine.prepare()
+
         let inputFormat = input.outputFormat(forBus: 0)
 
         // Whisper wants 16 kHz mono Float32.
@@ -101,8 +104,6 @@ final class AudioCapture {
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             self?.handleBuffer(buffer)
         }
-
-        engine.prepare()
 
         do {
             try engine.start()

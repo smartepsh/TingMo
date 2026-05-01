@@ -58,6 +58,9 @@ struct SettingsView: View {
                 instanceStore: llmInstanceStore
             )
 
+        case .context:
+            ContextSettingsSection(settings: contextSettings)
+
         case .speech:
             EngineSettingsView(
                 engineRegistry: engineRegistry,
@@ -84,23 +87,19 @@ struct SettingsView: View {
                 )
             }
 
+        case .correction:
+            LLMInstanceSettingsSection(
+                instanceStore: llmInstanceStore,
+                presetStore: presetStore
+            )
+
+        case .system:
             Section {
                 AudioDeviceListView(deviceManager: audioDeviceManager)
                     .frame(minHeight: 140)
             } header: {
                 Text("Audio Devices")
             }
-
-        case .llm:
-            LLMInstanceSettingsSection(
-                instanceStore: llmInstanceStore,
-                presetStore: presetStore
-            )
-
-        case .behavior:
-            ContextSettingsSection(settings: contextSettings)
-
-            HotkeySettingsView(hotkeyManager: hotkeyManager)
 
             Section {
                 Picker(String(localized: "Display Mode"), selection: Binding(
@@ -125,7 +124,6 @@ struct SettingsView: View {
                     statusIndicatorManager.audioLevel = 0.5
                     statusIndicatorManager.previewText = "Hello, this is a preview..."
                     statusIndicatorManager.show()
-                    // Auto-hide after 3 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         statusIndicatorManager.hide()
                     }
@@ -134,7 +132,8 @@ struct SettingsView: View {
                 Text("Status Indicator")
             }
 
-        case .advanced:
+            HotkeySettingsView(hotkeyManager: hotkeyManager)
+
             Section {
                 ForEach(PermissionType.allCases) { type in
                     PermissionStatusView(
@@ -163,10 +162,10 @@ struct SettingsView: View {
 
 private enum SettingsPage: CaseIterable, Hashable, Identifiable {
     case presets
+    case context
     case speech
-    case llm
-    case behavior
-    case advanced
+    case correction
+    case system
 
     var id: Self { self }
 
@@ -174,14 +173,14 @@ private enum SettingsPage: CaseIterable, Hashable, Identifiable {
         switch self {
         case .presets:
             String(localized: "Presets")
+        case .context:
+            String(localized: "Context")
         case .speech:
-            String(localized: "Speech")
-        case .llm:
-            String(localized: "LLM Instances")
-        case .behavior:
-            String(localized: "Behavior")
-        case .advanced:
-            String(localized: "Advanced")
+            String(localized: "Speech Recognition")
+        case .correction:
+            String(localized: "Correction")
+        case .system:
+            String(localized: "System")
         }
     }
 
@@ -189,13 +188,13 @@ private enum SettingsPage: CaseIterable, Hashable, Identifiable {
         switch self {
         case .presets:
             "slider.horizontal.3"
+        case .context:
+            "text.bubble"
         case .speech:
             "waveform"
-        case .llm:
+        case .correction:
             "sparkles"
-        case .behavior:
-            "keyboard"
-        case .advanced:
+        case .system:
             "gearshape"
         }
     }

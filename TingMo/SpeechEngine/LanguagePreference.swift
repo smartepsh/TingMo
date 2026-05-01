@@ -1,29 +1,51 @@
 import Foundation
 import Observation
 
-/// Persists the user's current transcription language preference (ISO / BCP-47
-/// code like "zh", "en"). Single global value: we don't store a per-engine
-/// language since users overwhelmingly transcribe in one language at a time.
+/// Persists the user's selected input languages for engine filtering.
 ///
-/// Engines that can't serve the current language surface a compatibility
-/// warning at the settings UI and when activated.
+/// Multiple languages can be selected to find engines that support all of them.
+/// This is a filtering/discovery tool, not a runtime hint passed to engines.
+///
+/// Engines that can't serve all selected languages surface a compatibility
+/// warning at the settings UI.
 @Observable
 @MainActor
 final class LanguagePreference {
-    private static let storageKey = "LanguagePreference.currentLanguage"
-    private static let defaultLanguage = "zh"
+    private static let storageKey = "LanguagePreference.selectedLanguages"
+    private static let legacyStorageKey = "LanguagePreference.currentLanguage"
 
-    /// Current ISO code passed to the engine (empty string means "auto-detect").
-    var current: String {
+    /// Selected ISO codes for engine filtering (empty means "no filter").
+    var selectedLanguages: Set<String> {
         didSet {
-            NSLog("[TingMo][Language] current changed \(oldValue) → \(current)")
-            UserDefaults.standard.set(current, forKey: Self.storageKey)
+            NSLog("[TingMo][Language] selectedLanguages changed \(oldValue) → \(selectedLanguages)")
+            save()
         }
     }
 
     init() {
-        current = UserDefaults.standard.string(forKey: Self.storageKey) ?? Self.defaultLanguage
+        selectedLanguages = Self.load()
     }
+
+    // MARK: - Persistence
+
+    private func save() {
+        let array = Array(selectedLanguages)
+        UserDefaults.standard.set(array, forKey: Self.storageKey)
+    }
+
+    private static func load() -> Set<String> {
+        // Try new storage first
+        if let array = UserDefaults.standard.array(forKey: storageKey) as? [String] {
+            return Set(array)
+        }
+        // Migrate from legacy single-language storage
+        if let legacy = UserDefaults.standard.string(forKey: legacyStorageKey), !legacy.isEmpty {
+            return [legacy]
+        }
+        return []
+    }
+
+    // MARK: - Languages
 
     /// Languages we expose in settings pickers. Kept intentionally small:
     /// the ones WhisperKit handles well + the ones the remote engines cover.

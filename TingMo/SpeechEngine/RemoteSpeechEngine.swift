@@ -8,7 +8,7 @@ enum RemoteAuthStyle: Sendable {
 }
 
 /// Static description of a remote STT provider.
-/// Runtime secrets (API key) are fetched from Keychain via `keychainService`.
+/// Runtime secrets (API key) are fetched from `EncryptedKeyStore` via `keychainService`.
 struct RemoteEngineConfig: Sendable {
     var id: String
     var name: String
@@ -130,7 +130,7 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
 
     init(config: RemoteEngineConfig) {
         self.config = config
-        let keyPresent = (KeychainStore.get(service: config.keychainService) ?? "").isEmpty == false
+        let keyPresent = (EncryptedKeyStore.get(service: config.keychainService) ?? "").isEmpty == false
         self.info = EngineInfo(
             id: config.id,
             name: config.name,
@@ -145,12 +145,12 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// Refresh `info.isReady` based on the current keychain state. Call this
     /// after the user adds/removes an API key so UI picks up the change.
     func refreshReadiness() {
-        let keyPresent = (KeychainStore.get(service: config.keychainService) ?? "").isEmpty == false
+        let keyPresent = (EncryptedKeyStore.get(service: config.keychainService) ?? "").isEmpty == false
         info.isReady = keyPresent
     }
 
     func transcribe(audioURL: URL, language: String) async throws -> AsyncStream<TranscriptionResult> {
-        guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
+        guard let apiKey = EncryptedKeyStore.get(service: config.keychainService), !apiKey.isEmpty else {
             throw RemoteEngineError.missingAPIKey
         }
         if !language.isEmpty, !supportsLanguage(language) {
@@ -176,7 +176,7 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// Issue a cheap auth check against the provider. Returns `nil` on
     /// success, or a `RemoteEngineError` describing the failure.
     func runConnectivityCheck() async -> RemoteEngineError? {
-        guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
+        guard let apiKey = EncryptedKeyStore.get(service: config.keychainService), !apiKey.isEmpty else {
             return .missingAPIKey
         }
         guard let mode = config.healthcheckMode else {

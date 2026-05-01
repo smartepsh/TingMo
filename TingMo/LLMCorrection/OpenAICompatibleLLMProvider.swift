@@ -16,7 +16,7 @@ struct OpenAICompatibleLLMProvider: LLMProvider {
         let transcript = request.trimmedTranscript
         guard !transcript.isEmpty else { throw LLMProviderError.emptyTranscript }
 
-        let apiKey = KeychainStore.get(service: request.config.effectiveKeychainService) ?? ""
+        let apiKey = EncryptedKeyStore.get(service: request.config.effectiveKeychainService) ?? ""
         if apiKey.isEmpty && !request.config.usesLocalEndpoint {
             throw LLMProviderError.missingAPIKey
         }

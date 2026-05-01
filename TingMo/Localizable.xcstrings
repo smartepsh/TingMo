@@ -1,15 +1,14 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%@ does not support %@. Pick another engine or language." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ does not support %2$@. Pick another engine or language."
-          }
-        }
-      }
+    "" : {
+
+    },
+    "%@ Settings" : {
+
+    },
+    "✓ %@" : {
+
     },
     "A model named '%@' is already imported." : {
 
@@ -46,10 +45,7 @@
     "API key is missing. Enter it in Settings." : {
 
     },
-    "API key saved in the Keychain. Use 'Test Connection' to verify." : {
-
-    },
-    "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults." : {
+    "API key saved. Use 'Test Connection' to verify." : {
 
     },
     "Application Name" : {
@@ -84,19 +80,31 @@
     "Clear" : {
 
     },
-    "Clear Key" : {
-
-    },
     "Clipboard" : {
 
     },
     "Coming Soon" : {
 
     },
+    "Compatible Engines" : {
+
+    },
     "Connection OK" : {
 
     },
     "Context" : {
+
+    },
+    "Correction" : {
+
+    },
+    "Correction Engine" : {
+
+    },
+    "Correction Models" : {
+
+    },
+    "Correction models store reusable LLM connections. API keys are stored locally with encryption; presets reference these models by name." : {
 
     },
     "Current endpoint: %@" : {
@@ -117,6 +125,9 @@
     "Delete" : {
 
     },
+    "Delete this model?" : {
+
+    },
     "Disk is full. Free up space and try again." : {
 
     },
@@ -129,6 +140,9 @@
           }
         }
       }
+    },
+    "Does not support all selected languages" : {
+
     },
     "Download" : {
 
@@ -168,9 +182,6 @@
 
     },
     "Endpoint URL" : {
-
-    },
-    "Engine" : {
 
     },
     "Enter an API key to enable this engine." : {
@@ -290,13 +301,13 @@
     "Incompatible" : {
 
     },
-    "Incompatible with %@" : {
+    "Incompatible Engines" : {
+
+    },
+    "Input Languages" : {
 
     },
     "Input Text" : {
-
-    },
-    "Input: %@" : {
 
     },
     "Installed" : {
@@ -305,25 +316,10 @@
     "Invalid model: required bundle '%@' is missing." : {
 
     },
-    "Key optional" : {
-
-    },
-    "Key saved" : {
-
-    },
     "Knowledge Base" : {
 
     },
-    "Language" : {
-
-    },
-    "Loading…" : {
-
-    },
     "Local" : {
-
-    },
-    "Local Engines" : {
 
     },
     "Log context for dogfood" : {
@@ -393,10 +389,10 @@
         }
       }
     },
-    "No internet connection." : {
+    "No engines support all selected languages." : {
 
     },
-    "No key" : {
+    "No internet connection." : {
 
     },
     "No notch detected — will use Top Center mode" : {
@@ -420,7 +416,7 @@
         }
       }
     },
-    "No remote engine configured. Add an API key below." : {
+    "None" : {
 
     },
     "Not downloaded" : {
@@ -441,6 +437,9 @@
           }
         }
       }
+    },
+    "Off" : {
+
     },
     "Offline" : {
       "localizations" : {
@@ -492,7 +491,7 @@
         }
       }
     },
-    "Parakeet (English) — Coming Soon" : {
+    "Output Language" : {
 
     },
     "Per-item limit: %lld chars" : {
@@ -509,6 +508,12 @@
       }
     },
     "Preset Name" : {
+
+    },
+    "Preset: %@" : {
+
+    },
+    "Presets" : {
 
     },
     "Press a key..." : {
@@ -584,6 +589,12 @@
     "Rate limit exceeded. Retry after %llds." : {
 
     },
+    "Raw (原始值)" : {
+
+    },
+    "Recognition Engine" : {
+
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -600,9 +611,6 @@
     "Remote" : {
 
     },
-    "Remote Engines" : {
-
-    },
     "Remove" : {
 
     },
@@ -615,6 +623,9 @@
           }
         }
       }
+    },
+    "Rename" : {
+
     },
     "Request cancelled." : {
 
@@ -669,9 +680,6 @@
     "Save" : {
 
     },
-    "Save Key" : {
-
-    },
     "Screen Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -681,6 +689,9 @@
           }
         }
       }
+    },
+    "Select languages you will speak. Engines that support all selected languages are shown below." : {
+
     },
     "Selected Text" : {
 
@@ -748,11 +759,7 @@
         }
       }
     },
-    "Speech Model" : {
-
-    },
     "Speech Recognition" : {
-      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -792,7 +799,7 @@
         }
       }
     },
-    "System Default" : {
+    "System" : {
 
     },
     "System Prompt" : {
@@ -804,7 +811,7 @@
     "Test Connection" : {
 
     },
-    "The default preset stores LLM configuration. Speech engine, model, language, device, and knowledge-base settings stay independent." : {
+    "The default preset stores correction behavior and the selected correction model. API keys, endpoints, and models are managed in Correction." : {
 
     },
     "The global hotkey will be ignored in these applications." : {
@@ -820,7 +827,11 @@
     "The selected item is not a valid WhisperKit model folder." : {
 
     },
+    "This model is active in your preset. Deleting it will set the Correction Engine to None." : {
+
+    },
     "TingMo 听墨" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -853,6 +864,9 @@
 
     },
     "Unexpected response from the server." : {
+
+    },
+    "Untitled" : {
 
     },
     "Use" : {

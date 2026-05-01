@@ -121,13 +121,6 @@ struct TingMoApp: App {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Menu(String(localized: "Language")) {
-                ForEach(LanguagePreference.availableLanguages) { lang in
-                    languageMenuButton(language: lang)
-                }
-            }
-            .disabled(pipeline.state != .idle)
-
             Menu(String(localized: "Recognition Engine")) {
                 ForEach(engineRegistry.engines, id: \.info.id) { engine in
                     recognitionEngineMenuButton(engine: engine)
@@ -283,27 +276,13 @@ struct TingMoApp: App {
     // MARK: - Preset quick editor
 
     @ViewBuilder
-    private func languageMenuButton(language: LanguagePreference.Language) -> some View {
-        let isActive = presetStore.defaultPreset.languageCode == language.code
-
-        Button(menuTitle(language.name, isActive: isActive)) {
-            presetStore.defaultPreset.languageCode = language.code
-            languagePreference.current = language.code
-        }
-        .disabled(isActive)
-    }
-
-    @ViewBuilder
     private func recognitionEngineMenuButton(engine: any SpeechEngine) -> some View {
         let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
-        let compatible = engine.supportsLanguage(presetStore.defaultPreset.languageCode)
         let ready = engine.info.isReady
 
         let title: String = {
             var label = menuTitle(engine.info.name, isActive: isActive)
-            if !compatible {
-                label += " — \(String(localized: "Incompatible"))"
-            } else if !ready {
+            if !ready {
                 if engine.info.type == .remote {
                     label += " — \(String(localized: "Missing API Key"))"
                 } else {
@@ -317,7 +296,7 @@ struct TingMoApp: App {
             presetStore.defaultPreset.speechEngineID = engine.info.id
             engineRegistry.setActiveEngine(engine.info.id)
         }
-        .disabled(isActive || !compatible || !ready)
+        .disabled(isActive || !ready)
     }
 
     @ViewBuilder

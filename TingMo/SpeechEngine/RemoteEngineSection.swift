@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Settings section for configuring a single remote STT provider.
 ///
-/// One row per provider. API key is stored via `KeychainStore`, a
+/// One row per provider. API key is stored via `EncryptedKeyStore`, a
 /// "Test" button runs `runConnectivityCheck()` and surfaces a result line.
 struct RemoteEngineSection: View {
     let engine: RemoteSpeechEngine
@@ -11,6 +11,7 @@ struct RemoteEngineSection: View {
     @State private var apiKey: String = ""
     @State private var isTesting = false
     @State private var lastTestResult: TestResult?
+    @State private var keyHint: String?
 
     enum TestResult {
         case success
@@ -19,9 +20,13 @@ struct RemoteEngineSection: View {
 
     var body: some View {
         Section {
-            SecureField(String(localized: "API Key"), text: $apiKey)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { saveAPIKey() }
+            SecureField(
+                String(localized: "API Key"),
+                text: $apiKey,
+                prompt: keyPlaceholder
+            )
+            .textFieldStyle(.roundedBorder)
+            .onSubmit { saveAPIKey() }
 
             HStack {
                 Button(String(localized: "Save")) {
@@ -81,24 +86,25 @@ struct RemoteEngineSection: View {
 
     private func loadExistingKey() {
         if engine.info.isReady {
-            // Don't leak the real key back into the UI — just show a mask so
-            // the user knows one is stored.
             apiKey = ""
+            keyHint = EncryptedKeyStore.keyHint(service: engine.config.keychainService)
         }
     }
 
     private func saveAPIKey() {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        _ = KeychainStore.set(trimmed, for: engine.config.keychainService)
+        _ = EncryptedKeyStore.set(trimmed, for: engine.config.keychainService)
         engineRegistry.refreshRemoteEnginesReadiness()
+        keyHint = EncryptedKeyStore.keyHint(service: engine.config.keychainService)
         apiKey = ""
         lastTestResult = nil
     }
 
     private func clearAPIKey() {
-        _ = KeychainStore.delete(service: engine.config.keychainService)
+        _ = EncryptedKeyStore.delete(service: engine.config.keychainService)
         engineRegistry.refreshRemoteEnginesReadiness()
+        keyHint = nil
         apiKey = ""
         lastTestResult = nil
     }
@@ -115,9 +121,16 @@ struct RemoteEngineSection: View {
 
     // MARK: - Status text
 
+    private var keyPlaceholder: Text {
+        if let hint = keyHint {
+            return Text(hint)
+        }
+        return Text("")
+    }
+
     private var statusFooter: String {
         if engine.info.isReady {
-            return String(localized: "API key saved in the Keychain. Use 'Test Connection' to verify.")
+            return String(localized: "API key saved. Use 'Test Connection' to verify.")
         }
         return String(localized: "Enter an API key to enable this engine.")
     }

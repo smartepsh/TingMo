@@ -12,8 +12,8 @@
 
 /* Begin PBXFileReference section */
 		762D97BC2F683D3500FF0133 /* TingMo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TingMo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		76B3FC0F2F6BB0E300791B19 /* TingMo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TingMo.xcodeproj; sourceTree = "<group>"; };
+		76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -54,14 +54,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		76D2F50F2FA00D8200C0FFEE /* Config */ = {
-			isa = PBXGroup;
-			children = (
-				76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
 		76A0D97E2F9A2839000B4EBB /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,6 +66,14 @@
 			children = (
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		76D2F50F2FA00D8200C0FFEE /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
