@@ -52,7 +52,9 @@ struct SettingsView: View {
         case .presets:
             PresetSettingsSection(
                 presetStore: presetStore,
-                instanceStore: llmInstanceStore
+                instanceStore: llmInstanceStore,
+                sttInstanceStore: sttInstanceStore,
+                engineRegistry: engineRegistry
             )
 
         case .context:

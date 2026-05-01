@@ -3,11 +3,50 @@ import SwiftUI
 struct PresetSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
     @Bindable var instanceStore: LLMInstanceStore
+    @Bindable var sttInstanceStore: STTInstanceStore
+    @Bindable var engineRegistry: EngineRegistry
+    @State private var filterLanguages: Set<String> = []
 
     var body: some View {
         Section {
             TextField(String(localized: "Preset Name"), text: presetBinding(\.name))
                 .textFieldStyle(.roundedBorder)
+
+            // Language filter (UI only)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(localized: "Filter by language"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    ForEach(LanguagePreference.availableLanguages) { lang in
+                        Toggle(lang.name, isOn: filterBinding(for: lang.code))
+                            .font(.caption)
+                    }
+                }
+            }
+
+            // Speech Engine picker
+            Picker(String(localized: "Speech Engine"), selection: speechEngineBinding) {
+                Text(String(localized: "None")).tag("" as String)
+
+                // WhisperKit Models
+                ForEach(whisperKitEngines, id: \.info.id) { engine in
+                    Text("\(engine.info.name) — \(engine.info.modelSize ?? "")")
+                        .tag(engine.info.id as String)
+                }
+
+                // Remote STT Instances
+                if !filteredSTTInstances.isEmpty {
+                    Divider()
+                    ForEach(filteredSTTInstances) { instance in
+                        Text("\(instance.displayName) (\(instance.provider.displayName))")
+                            .tag("stt-instance-\(instance.id.uuidString)" as String)
+                    }
+                }
+            }
+            .onAppear {
+                validateSpeechEngineSelection()
+            }
 
             Picker(String(localized: "Output Language"), selection: outputLanguageBinding) {
                 Text(String(localized: "Raw (原始值)")).tag(ConfigPreset.rawOutputLanguage)
@@ -63,6 +102,55 @@ struct PresetSettingsSection: View {
         if let id = presetStore.defaultPreset.llmInstanceID,
            !instanceStore.instances.contains(where: { $0.id == id }) {
             presetStore.defaultPreset.llmInstanceID = nil
+        }
+    }
+
+    private var whisperKitEngines: [any SpeechEngine] {
+        engineRegistry.engines.filter { engine in
+            guard engine is WhisperKitEngine else { return false }
+            if filterLanguages.isEmpty { return true }
+            return filterLanguages.allSatisfy { engine.supportsLanguage($0) }
+        }
+    }
+
+    private var filteredSTTInstances: [STTInstance] {
+        if filterLanguages.isEmpty { return sttInstanceStore.instances }
+        return sttInstanceStore.instances.filter { instance in
+            filterLanguages.allSatisfy { instance.provider.supportsLanguage($0) }
+        }
+    }
+
+    private var speechEngineBinding: Binding<String> {
+        Binding(
+            get: { presetStore.defaultPreset.speechEngineID },
+            set: { newValue in
+                presetStore.defaultPreset.speechEngineID = newValue
+                engineRegistry.setActiveEngine(newValue)
+            }
+        )
+    }
+
+    private func filterBinding(for code: String) -> Binding<Bool> {
+        Binding(
+            get: { filterLanguages.contains(code) },
+            set: { isSelected in
+                if isSelected {
+                    filterLanguages.insert(code)
+                } else {
+                    filterLanguages.remove(code)
+                }
+            }
+        )
+    }
+
+    private func validateSpeechEngineSelection() {
+        let currentID = presetStore.defaultPreset.speechEngineID
+        if currentID.hasPrefix("stt-instance-") {
+            let uuidString = currentID.replacingOccurrences(of: "stt-instance-", with: "")
+            if let uuid = UUID(uuidString: uuidString),
+               sttInstanceStore.instance(id: uuid) == nil {
+                presetStore.defaultPreset.speechEngineID = ConfigPreset.defaultSpeechEngineID
+            }
         }
     }
 
