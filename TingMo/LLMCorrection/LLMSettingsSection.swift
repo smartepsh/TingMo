@@ -29,18 +29,21 @@ struct PresetSettingsSection: View {
             Picker(String(localized: "Speech Engine"), selection: speechEngineBinding) {
                 Text(String(localized: "None")).tag("" as String)
 
-                // WhisperKit Models
-                ForEach(whisperKitEngines, id: \.info.id) { engine in
-                    Text("\(engine.info.name) — \(engine.info.modelSize ?? "")")
-                        .tag(engine.info.id as String)
-                }
-
-                // Remote STT Instances
-                if !filteredSTTInstances.isEmpty {
+                // Remote STT Instances (ready only)
+                if !readySTTInstances.isEmpty {
                     Divider()
-                    ForEach(filteredSTTInstances) { instance in
+                    ForEach(readySTTInstances) { instance in
                         Text("\(instance.displayName) (\(instance.provider.displayName))")
                             .tag("stt-instance-\(instance.id.uuidString)" as String)
+                    }
+                }
+
+                // Local WhisperKit Models (downloaded only)
+                if !readyWhisperKitEngines.isEmpty {
+                    Divider()
+                    ForEach(readyWhisperKitEngines, id: \.info.id) { engine in
+                        Text("\(engine.info.name) — \(engine.info.modelSize ?? "")")
+                            .tag(engine.info.id as String)
                     }
                 }
             }
@@ -54,8 +57,6 @@ struct PresetSettingsSection: View {
                     Text(lang.name).tag(lang.code)
                 }
             }
-
-            Toggle(String(localized: "Enable LLM Correction"), isOn: presetBinding(\.correctionEnabled))
 
             Picker(String(localized: "Correction Engine"), selection: llmInstanceBinding) {
                 Text(String(localized: "None")).tag(UUID?.none)
@@ -113,11 +114,19 @@ struct PresetSettingsSection: View {
         }
     }
 
+    private var readyWhisperKitEngines: [any SpeechEngine] {
+        whisperKitEngines.filter { $0.info.isReady }
+    }
+
     private var filteredSTTInstances: [STTInstance] {
         if filterLanguages.isEmpty { return sttInstanceStore.instances }
         return sttInstanceStore.instances.filter { instance in
             filterLanguages.allSatisfy { instance.provider.supportsLanguage($0) }
         }
+    }
+
+    private var readySTTInstances: [STTInstance] {
+        filteredSTTInstances.filter { sttInstanceStore.hasAPIKey(for: $0) }
     }
 
     private var speechEngineBinding: Binding<String> {
@@ -176,7 +185,7 @@ struct PresetSettingsSection: View {
     }
 
     private var footerText: String {
-        String(localized: "The default preset stores correction behavior and the selected correction model. API keys, endpoints, and models are managed in Correction.")
+        String(localized: "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction.")
     }
 
     private var normalizedCorrectionTemperature: Double {

@@ -61,21 +61,16 @@ struct SettingsView: View {
             ContextSettingsSection(settings: contextSettings)
 
         case .speech:
-            ModelDownloadView(
-                engineRegistry: engineRegistry,
-                downloadSource: downloadSource,
-                presetStore: presetStore
-            )
-
-            ImportedModelSection(
-                engineRegistry: engineRegistry,
-                importedModelStore: importedModelStore,
-                presetStore: presetStore
-            )
-
             STTInstanceSettingsSection(
                 instanceStore: sttInstanceStore,
                 engineRegistry: engineRegistry,
+                presetStore: presetStore
+            )
+
+            LocalProviderSection(
+                engineRegistry: engineRegistry,
+                downloadSource: downloadSource,
+                importedModelStore: importedModelStore,
                 presetStore: presetStore
             )
 

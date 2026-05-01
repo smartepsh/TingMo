@@ -3,7 +3,7 @@ import Observation
 
 /// Persists the user's preferred HuggingFace endpoint used for WhisperKit
 /// model downloads. Defaults to the official HF; users on restricted
-/// networks can swap to a mirror (e.g. hf-mirror.com) or a private host.
+/// networks can swap to a custom host.
 @Observable
 @MainActor
 final class DownloadSourcePreference {
@@ -25,8 +25,7 @@ final class DownloadSourcePreference {
     }
 
     static let presets: [Preset] = [
-        Preset(id: "huggingface", label: "HuggingFace (默认)", endpoint: "https://huggingface.co"),
-        Preset(id: "hf-mirror", label: "hf-mirror.com (国内镜像)", endpoint: "https://hf-mirror.com"),
+        Preset(id: "huggingface", label: String(localized: "HuggingFace (Default)"), endpoint: "https://huggingface.co"),
         Preset(id: "custom", label: String(localized: "Custom…"), endpoint: ""),
     ]
 

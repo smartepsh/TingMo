@@ -222,7 +222,7 @@ final class DictationPipeline {
 
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
         let preset = presetStore.defaultPreset
-        guard preset.correctionEnabled else { return (transcript, nil) }
+        guard preset.llmInstanceID != nil else { return (transcript, nil) }
         guard let llmConfig = llmInstanceStore.llmConfig(for: preset) else {
             return (transcript, PipelineError.notReady(reason: "No LLM correction instance selected."))
         }

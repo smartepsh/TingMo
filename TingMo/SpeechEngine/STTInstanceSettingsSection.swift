@@ -118,7 +118,7 @@ struct STTInstanceSettingsSection: View {
             }
         } header: {
             HStack {
-                Text("Remote STT Providers")
+                Text("Remote Provider")
                 Spacer()
                 Menu {
                     ForEach(STTProviderID.allCases) { provider in
@@ -135,7 +135,7 @@ struct STTInstanceSettingsSection: View {
                 .menuStyle(.borderlessButton)
             }
         } footer: {
-            Text(String(localized: "Remote STT providers store reusable API connections. Presets reference these by name."))
+            Text(String(localized: "Remote providers store reusable API connections. Presets reference these by name."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

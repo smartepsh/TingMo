@@ -37,7 +37,7 @@ struct ConfigPreset: Identifiable, Codable, Equatable {
 
     func llmConfig(resolving instance: LLMInstance) -> LLMConfig {
         LLMConfig(
-            enabled: correctionEnabled,
+            enabled: llmInstanceID != nil,
             provider: instance.provider,
             endpoint: instance.endpoint,
             model: instance.model,

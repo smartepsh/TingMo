@@ -198,9 +198,6 @@
         }
       }
     },
-    "Enable LLM Correction" : {
-
-    },
     "Endpoint URL" : {
 
     },
@@ -312,6 +309,9 @@
     "https://example.com" : {
 
     },
+    "HuggingFace (Default)" : {
+
+    },
     "Idle" : {
 
     },
@@ -334,6 +334,9 @@
 
     },
     "Knowledge Base" : {
+
+    },
+    "Local Provider" : {
 
     },
     "Log context for dogfood" : {
@@ -365,6 +368,9 @@
 
     },
     "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk." : {
+
+    },
+    "Models install to ~/Library/Application Support/TingMo/Models. Drop a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc to import." : {
 
     },
     "Network error: %@" : {
@@ -613,10 +619,10 @@
     "Recording…" : {
 
     },
-    "Remote STT Providers" : {
+    "Remote Provider" : {
 
     },
-    "Remote STT providers store reusable API connections. Presets reference these by name." : {
+    "Remote providers store reusable API connections. Presets reference these by name." : {
 
     },
     "Remove" : {
@@ -697,6 +703,9 @@
           }
         }
       }
+    },
+    "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
+
     },
     "Selected Text" : {
 
@@ -816,9 +825,6 @@
     "Test Connection" : {
 
     },
-    "The default preset stores correction behavior and the selected correction model. API keys, endpoints, and models are managed in Correction." : {
-
-    },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {
         "zh-Hans" : {
@@ -883,6 +889,9 @@
           }
         }
       }
+    },
+    "Whisper Models" : {
+
     },
     "WhisperKit Models" : {
 
