@@ -412,3 +412,45 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
         body.append("\(value)\r\n".data(using: .utf8)!)
     }
 }
+
+extension RemoteSpeechEngine {
+    /// Create a RemoteSpeechEngine from an STTInstance.
+    /// Builds the appropriate RemoteEngineConfig based on the instance's provider.
+    convenience init(instance: STTInstance) {
+        let config = Self.config(for: instance.provider, keychainService: instance.keychainService)
+        self.init(config: config)
+    }
+
+    private static func config(for provider: STTProviderID, keychainService: String) -> RemoteEngineConfig {
+        switch provider {
+        case .groq:
+            RemoteEngineConfig(
+                id: "stt-instance-groq",
+                name: provider.defaultInstanceName,
+                endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+                modelFieldName: "model",
+                modelValue: "whisper-large-v3",
+                languageFieldName: "language",
+                keychainService: keychainService,
+                authStyle: .bearer,
+                supportedLanguages: provider.supportedLanguages,
+                healthcheckMode: .get(url: "https://api.groq.com/openai/v1/models"),
+                billingNote: nil
+            )
+        case .elevenlabs:
+            RemoteEngineConfig(
+                id: "stt-instance-elevenlabs",
+                name: provider.defaultInstanceName,
+                endpoint: "https://api.elevenlabs.io/v1/speech-to-text",
+                modelFieldName: "model_id",
+                modelValue: "scribe_v1",
+                languageFieldName: "language_code",
+                keychainService: keychainService,
+                authStyle: .xiAPIKey,
+                supportedLanguages: provider.supportedLanguages,
+                healthcheckMode: .postSTT,
+                billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
+            )
+        }
+    }
+}
