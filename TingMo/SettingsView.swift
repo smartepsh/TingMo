@@ -11,14 +11,11 @@ struct SettingsView: View {
     @Bindable var importedModelStore: ImportedModelStore
     @Bindable var presetStore: ConfigPresetStore
     @Bindable var llmInstanceStore: LLMInstanceStore
+    @Bindable var sttInstanceStore: STTInstanceStore
     @Bindable var contextSettings: ContextSettingsStore
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedPage: SettingsPage = .presets
-
-    private var remoteEngines: [RemoteSpeechEngine] {
-        engineRegistry.engines.compactMap { $0 as? RemoteSpeechEngine }
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -62,12 +59,6 @@ struct SettingsView: View {
             ContextSettingsSection(settings: contextSettings)
 
         case .speech:
-            EngineSettingsView(
-                engineRegistry: engineRegistry,
-                languagePreference: languagePreference,
-                presetStore: presetStore
-            )
-
             ModelDownloadView(
                 engineRegistry: engineRegistry,
                 downloadSource: downloadSource,
@@ -80,12 +71,11 @@ struct SettingsView: View {
                 presetStore: presetStore
             )
 
-            ForEach(remoteEngines, id: \.info.id) { engine in
-                RemoteEngineSection(
-                    engine: engine,
-                    engineRegistry: engineRegistry
-                )
-            }
+            STTInstanceSettingsSection(
+                instanceStore: sttInstanceStore,
+                engineRegistry: engineRegistry,
+                presetStore: presetStore
+            )
 
         case .correction:
             LLMInstanceSettingsSection(

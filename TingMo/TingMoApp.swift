@@ -14,6 +14,7 @@ struct TingMoApp: App {
     @State private var importedModelStore: ImportedModelStore
     @State private var presetStore: ConfigPresetStore
     @State private var llmInstanceStore: LLMInstanceStore
+    @State private var sttInstanceStore: STTInstanceStore
     @State private var contextSettings: ContextSettingsStore
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -44,11 +45,13 @@ struct TingMoApp: App {
         let importedStore = ImportedModelStore()
         let defaultLLMInstanceID = UUID()
         let llmInstanceStore = LLMInstanceStore(defaultID: defaultLLMInstanceID)
+        let sttInstanceStore = STTInstanceStore()
         let presetStore = ConfigPresetStore(defaultLLMInstanceID: defaultLLMInstanceID)
         let contextSettings = ContextSettingsStore()
         let registry = EngineRegistry(
             downloadSource: downloadSource,
-            importedModelStore: importedStore
+            importedModelStore: importedStore,
+            sttInstanceStore: sttInstanceStore
         )
         let languagePreference = LanguagePreference()
         _permissionManager = State(initialValue: permissionManager)
@@ -61,6 +64,7 @@ struct TingMoApp: App {
         _importedModelStore = State(initialValue: importedStore)
         _presetStore = State(initialValue: presetStore)
         _llmInstanceStore = State(initialValue: llmInstanceStore)
+        _sttInstanceStore = State(initialValue: sttInstanceStore)
         _contextSettings = State(initialValue: contextSettings)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
@@ -212,6 +216,7 @@ struct TingMoApp: App {
                 importedModelStore: importedModelStore,
                 presetStore: presetStore,
                 llmInstanceStore: llmInstanceStore,
+                sttInstanceStore: sttInstanceStore,
                 contextSettings: contextSettings
             )
         }
