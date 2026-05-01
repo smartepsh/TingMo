@@ -4,6 +4,26 @@
     "" : {
 
     },
+    "%@ — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
     "%@ Settings" : {
 
     },
@@ -43,9 +63,6 @@
 
     },
     "API key is missing. Enter it in Settings." : {
-
-    },
-    "API key saved. Use 'Test Connection' to verify." : {
 
     },
     "Application Name" : {
@@ -89,9 +106,6 @@
     "Coming Soon" : {
 
     },
-    "Compatible Engines" : {
-
-    },
     "Connection OK" : {
 
     },
@@ -131,6 +145,9 @@
     "Delete this model?" : {
 
     },
+    "Delete this provider?" : {
+
+    },
     "Disk is full. Free up space and try again." : {
 
     },
@@ -143,9 +160,6 @@
           }
         }
       }
-    },
-    "Does not support all selected languages" : {
-
     },
     "Download" : {
 
@@ -165,7 +179,13 @@
     "Drop or import a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc." : {
 
     },
+    "ElevenLabs" : {
+
+    },
     "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits." : {
+
+    },
+    "ElevenLabs Scribe" : {
 
     },
     "Embed in the camera notch area" : {
@@ -184,9 +204,6 @@
     "Endpoint URL" : {
 
     },
-    "Enter an API key to enable this engine." : {
-
-    },
     "Excluded Apps" : {
       "localizations" : {
         "zh-Hans" : {
@@ -201,6 +218,9 @@
 
     },
     "Failed to copy model: %@" : {
+
+    },
+    "Filter by language" : {
 
     },
     "Floating Window" : {
@@ -263,6 +283,12 @@
         }
       }
     },
+    "Groq" : {
+
+    },
+    "Groq Whisper" : {
+
+    },
     "Hotkey" : {
       "localizations" : {
         "zh-Hans" : {
@@ -298,15 +324,6 @@
     "Imported Models" : {
 
     },
-    "Incompatible" : {
-
-    },
-    "Incompatible Engines" : {
-
-    },
-    "Input Languages" : {
-
-    },
     "Input Text" : {
 
     },
@@ -317,9 +334,6 @@
 
     },
     "Knowledge Base" : {
-
-    },
-    "Local" : {
 
     },
     "Log context for dogfood" : {
@@ -342,9 +356,6 @@
       }
     },
     "Microphone disconnected." : {
-
-    },
-    "Missing API key" : {
 
     },
     "Missing API Key" : {
@@ -389,9 +400,6 @@
         }
       }
     },
-    "No engines support all selected languages." : {
-
-    },
     "No internet connection." : {
 
     },
@@ -417,9 +425,6 @@
       }
     },
     "None" : {
-
-    },
-    "Not downloaded" : {
 
     },
     "Not Downloaded" : {
@@ -608,7 +613,10 @@
     "Recording…" : {
 
     },
-    "Remote" : {
+    "Remote STT Providers" : {
+
+    },
+    "Remote STT providers store reusable API connections. Presets reference these by name." : {
 
     },
     "Remove" : {
@@ -689,9 +697,6 @@
           }
         }
       }
-    },
-    "Select languages you will speak. Engines that support all selected languages are shown below." : {
-
     },
     "Selected Text" : {
 
@@ -830,6 +835,9 @@
     "This model is active in your preset. Deleting it will set the Correction Engine to None." : {
 
     },
+    "This provider is active in your preset. Deleting it will reset the Speech Engine." : {
+
+    },
     "TingMo 听墨" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -860,16 +868,10 @@
     "Transcribing…" : {
 
     },
-    "Unavailable" : {
-
-    },
     "Unexpected response from the server." : {
 
     },
     "Untitled" : {
-
-    },
-    "Use" : {
 
     },
     "Welcome to TingMo" : {
