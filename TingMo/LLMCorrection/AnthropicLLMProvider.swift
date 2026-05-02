@@ -25,7 +25,11 @@ struct AnthropicLLMProvider: LLMProvider {
             "max_tokens": 1,
             "messages": [["role": "user", "content": "test"]]
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            return .network(underlying: error)
+        }
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -36,6 +40,8 @@ struct AnthropicLLMProvider: LLMProvider {
                 return nil
             case 401, 403:
                 return .unauthorized
+            case 408:
+                return .timeout
             case 429:
                 return .rateLimited(retryAfter: nil)
             default:
