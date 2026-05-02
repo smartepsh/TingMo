@@ -198,6 +198,7 @@ struct LLMInstanceSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
 
     @State private var apiKeys: [UUID: String] = [:]
+    @State private var draftAPIKeys: [UUID: String] = [:]
     @State private var pendingDeleteID: UUID?
     @State private var activeDeleteID: UUID?
     @State private var renamingID: UUID?
@@ -205,6 +206,10 @@ struct LLMInstanceSettingsSection: View {
     @State private var expandedInstanceID: UUID?
     @State private var isTesting: [UUID: Bool] = [:]
     @State private var testResults: [UUID: TestResult] = [:]
+
+    // Draft state for onBlur save strategy
+    @State private var draftEndpoints: [UUID: String] = [:]
+    @State private var draftModels: [UUID: String] = [:]
 
     enum TestResult {
         case success
@@ -222,11 +227,11 @@ struct LLMInstanceSettingsSection: View {
                             }
                         }
 
-                        TextField(String(localized: "Base URL"), text: textBinding(for: instance.id, \.endpoint))
+                        TextField(String(localized: "Base URL"), text: draftEndpointBinding(for: instance.id))
                             .textFieldStyle(.roundedBorder)
                             .textContentType(.URL)
 
-                        TextField(String(localized: "Model"), text: textBinding(for: instance.id, \.model))
+                        TextField(String(localized: "Model"), text: draftModelBinding(for: instance.id))
                             .textFieldStyle(.roundedBorder)
 
                         SecureField(
@@ -235,21 +240,9 @@ struct LLMInstanceSettingsSection: View {
                             prompt: keyPlaceholder(for: instance)
                         )
                         .textFieldStyle(.roundedBorder)
-                        .onSubmit { saveAPIKey(for: instance.id) }
 
                         HStack {
-                            Button(String(localized: "Save")) {
-                                saveAPIKey(for: instance.id)
-                            }
-                            .disabled((apiKeys[instance.id] ?? "").isEmpty && !instanceStore.hasAPIKey(for: instance))
-
-                            Button(String(localized: "Clear"), role: .destructive) {
-                                clearAPIKey(for: instance)
-                            }
-                            .disabled(!instanceStore.hasAPIKey(for: instance) && (apiKeys[instance.id] ?? "").isEmpty)
-
                             Spacer()
-
                             Button {
                                 Task { await runTest(for: instance) }
                             } label: {
@@ -277,36 +270,11 @@ struct LLMInstanceSettingsSection: View {
                     }
                     .padding(.vertical, 4)
                 } label: {
-                    HStack(spacing: 6) {
-                        Text(instance.displayName.isEmpty ? String(localized: "Untitled") : instance.displayName)
-                            .lineLimit(1)
-                            .foregroundStyle(instance.displayName.isEmpty ? .secondary : .primary)
-                        Button {
-                            renameText = instance.displayName
-                            renamingID = instance.id
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .popover(isPresented: renameBinding(for: instance.id)) {
-                            renamePopover(for: instance)
-                        }
-                        Spacer()
-                        if presetStore.defaultPreset.llmInstanceID == instance.id {
-                            Text(String(localized: "Active"))
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.green.opacity(0.12), in: Capsule())
-                        }
-                        Text(instance.provider.displayName)
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                        deleteButton(for: instance)
-                    }
+                    instanceRowLabel(instance)
                 }
+            }
+            .onChange(of: expandedInstanceID) { _, newID in
+                flushPreviousDrafts(keeping: newID)
             }
         } header: {
             HStack {
@@ -325,6 +293,59 @@ struct LLMInstanceSettingsSection: View {
             Text(String(localized: "Correction models store reusable LLM connections. API keys are stored locally with encryption; presets reference these models by name."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .onDisappear {
+            flushAllDrafts()
+        }
+    }
+
+    // MARK: - Instance Row Label
+
+    @ViewBuilder
+    private func instanceRowLabel(_ instance: LLMInstance) -> some View {
+        HStack(spacing: 6) {
+            Text(instance.displayName.isEmpty ? String(localized: "Untitled") : instance.displayName)
+                .lineLimit(1)
+                .foregroundStyle(instance.displayName.isEmpty ? .secondary : .primary)
+            Button {
+                renameText = instance.displayName
+                renamingID = instance.id
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .popover(isPresented: renameBinding(for: instance.id)) {
+                renamePopover(for: instance)
+            }
+            Spacer()
+            if presetStore.defaultPreset.llmInstanceID == instance.id {
+                Text(String(localized: "Active"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            }
+            if instanceIsVerified(instance) {
+                Text(String(localized: "✓ Verified"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            } else {
+                Text(String(localized: "Not Verified"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+            }
+            Text(instance.provider.displayName)
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            deleteButton(for: instance)
         }
     }
 
@@ -413,23 +434,99 @@ struct LLMInstanceSettingsSection: View {
         }
     }
 
-    private func textBinding(for id: UUID, _ keyPath: WritableKeyPath<LLMInstance, String>) -> Binding<String> {
+    // MARK: - Verification
+
+    private func instanceIsVerified(_ instance: LLMInstance) -> Bool {
+        guard let stored = instance.verifiedFingerprint, !stored.isEmpty else { return false }
+        let hint = EncryptedKeyStore.keyHint(service: instance.keychainService)
+        // Use draft values if available, otherwise stored values
+        var copy = instance
+        if let draft = draftEndpoints[instance.id] { copy.endpoint = draft }
+        if let draft = draftModels[instance.id] { copy.model = draft }
+        return stored == copy.computeFingerprint(apiKeyHint: hint)
+    }
+
+    // MARK: - Draft Bindings (onBlur save)
+
+    private func draftEndpointBinding(for id: UUID) -> Binding<String> {
         Binding(
-            get: { instanceStore.instance(id: id)?[keyPath: keyPath] ?? "" },
-            set: { value in
-                guard var instance = instanceStore.instance(id: id) else { return }
-                instance[keyPath: keyPath] = value
-                instanceStore.upsert(instance)
+            get: { draftEndpoints[id, default: instanceStore.instance(id: id)?.endpoint ?? ""] },
+            set: { newValue in
+                draftEndpoints[id] = newValue
+                clearVerifiedFingerprint(for: id)
             }
         )
+    }
+
+    private func draftModelBinding(for id: UUID) -> Binding<String> {
+        Binding(
+            get: { draftModels[id, default: instanceStore.instance(id: id)?.model ?? ""] },
+            set: { newValue in
+                draftModels[id] = newValue
+                clearVerifiedFingerprint(for: id)
+            }
+        )
+    }
+
+    private func clearVerifiedFingerprint(for id: UUID) {
+        guard var instance = instanceStore.instance(id: id),
+              instance.verifiedFingerprint != nil else { return }
+        instance.verifiedFingerprint = nil
+        instanceStore.upsert(instance)
+    }
+
+    // MARK: - Flush Drafts
+
+    private func flushDrafts(for id: UUID) {
+        guard var instance = instanceStore.instance(id: id) else { return }
+        var changed = false
+        if let endpoint = draftEndpoints.removeValue(forKey: id) {
+            instance.endpoint = endpoint
+            changed = true
+        }
+        if let model = draftModels.removeValue(forKey: id) {
+            instance.model = model
+            changed = true
+        }
+        if let key = draftAPIKeys.removeValue(forKey: id) {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                _ = instanceStore.clearAPIKey(for: instance)
+                testResults[id] = nil
+            } else {
+                _ = instanceStore.saveAPIKey(trimmed, for: instance)
+            }
+        }
+        if changed {
+            instanceStore.upsert(instance)
+        }
+    }
+
+    private func flushPreviousDrafts(keeping newID: UUID?) {
+        let allIDs = Set(draftEndpoints.keys).union(draftModels.keys).union(draftAPIKeys.keys)
+        for id in allIDs where id != newID {
+            flushDrafts(for: id)
+        }
+    }
+
+    private func flushAllDrafts() {
+        let ids = Set(draftEndpoints.keys).union(draftModels.keys).union(draftAPIKeys.keys)
+        for id in ids {
+            flushDrafts(for: id)
+        }
     }
 
     private func providerBinding(for id: UUID) -> Binding<LLMProviderID> {
         Binding(
             get: { instanceStore.instance(id: id)?.provider ?? .openAICompatible },
             set: { provider in
+                // Flush any pending drafts before switching provider
+                flushDrafts(for: id)
                 guard instanceStore.updateProvider(for: id, provider: provider) else { return }
                 apiKeys[id] = ""
+                // Provider change invalidates fingerprint
+                clearVerifiedFingerprint(for: id)
+                testResults[id] = nil
             }
         )
     }
@@ -437,7 +534,12 @@ struct LLMInstanceSettingsSection: View {
     private func apiKeyBinding(for id: UUID) -> Binding<String> {
         Binding(
             get: { apiKeys[id, default: ""] },
-            set: { apiKeys[id] = $0 }
+            set: { newValue in
+                apiKeys[id] = newValue
+                draftAPIKeys[id] = newValue
+                // Key change invalidates fingerprint
+                clearVerifiedFingerprint(for: id)
+            }
         )
     }
 
@@ -449,12 +551,6 @@ struct LLMInstanceSettingsSection: View {
         return Text("")
     }
 
-    private func saveAPIKey(for id: UUID) {
-        guard let instance = instanceStore.instance(id: id) else { return }
-        guard instanceStore.saveAPIKey(apiKeys[id, default: ""], for: instance) else { return }
-        apiKeys[id] = ""
-    }
-
     private func deleteInstance(_ id: UUID) {
         guard instanceStore.deleteInstance(id: id) else { return }
         presetStore.replaceLLMInstanceSelection(
@@ -462,13 +558,8 @@ struct LLMInstanceSettingsSection: View {
             fallbackID: instanceStore.instances.first?.id
         )
         apiKeys[id] = nil
+        draftAPIKeys[id] = nil
         pendingDeleteID = nil
-    }
-
-    private func clearAPIKey(for instance: LLMInstance) {
-        _ = instanceStore.clearAPIKey(for: instance)
-        apiKeys[instance.id] = nil
-        testResults[instance.id] = nil
     }
 
     private func runTest(for instance: LLMInstance) async {
@@ -476,16 +567,21 @@ struct LLMInstanceSettingsSection: View {
         isTesting[instance.id] = true
         defer { isTesting[instance.id] = false }
 
+        // Flush any pending drafts before testing
+        flushDrafts(for: instance.id)
+
+        guard let freshInstance = instanceStore.instance(id: instance.id) else { return }
+
         let config = LLMConfig(
             enabled: true,
-            provider: instance.provider,
-            endpoint: instance.effectiveBaseURL,
-            model: instance.effectiveModel,
-            keychainService: instance.keychainService
+            provider: freshInstance.provider,
+            endpoint: freshInstance.effectiveBaseURL,
+            model: freshInstance.effectiveModel,
+            keychainService: freshInstance.keychainService
         )
 
         let provider: any LLMProvider
-        switch instance.provider.wireFormat {
+        switch freshInstance.provider.wireFormat {
         case .openai:
             provider = OpenAICompatibleLLMProvider()
         case .anthropic:
@@ -493,9 +589,16 @@ struct LLMInstanceSettingsSection: View {
         }
 
         if let error = await provider.runConnectivityCheck(config) {
-            testResults[instance.id] = .failure(error.localizedDescription)
+            testResults[freshInstance.id] = .failure(error.localizedDescription)
+            // Clear verified on failure
+            clearVerifiedFingerprint(for: freshInstance.id)
         } else {
-            testResults[instance.id] = .success
+            testResults[freshInstance.id] = .success
+            // Set verified fingerprint on success
+            var updated = freshInstance
+            let hint = EncryptedKeyStore.keyHint(service: freshInstance.keychainService)
+            updated.verifiedFingerprint = updated.computeFingerprint(apiKeyHint: hint)
+            instanceStore.upsert(updated)
         }
     }
 }
