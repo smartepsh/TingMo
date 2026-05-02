@@ -18,10 +18,10 @@ struct LLMInstanceTests {
         let secondID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
 
         let defaultInstance = LLMInstance.defaultInstance(id: firstID)
-        assert(defaultInstance.displayName == "OpenAI-compatible", "default display name should be provider display name")
+        assert(defaultInstance.displayName == "", "default display name should be empty")
         assert(defaultInstance.keychainService == "tingmo.llm.instance.11111111-1111-1111-1111-111111111111", "default keychain service should be instance scoped")
-        assert(defaultInstance.effectiveEndpoint == LLMProviderID.openAICompatible.defaultEndpoint, "default endpoint should resolve from provider")
-        assert(defaultInstance.effectiveModel == LLMProviderID.openAICompatible.defaultModel, "default model should resolve from provider")
+        assert(defaultInstance.effectiveEndpoint == LLMProviderID.openAICompatible.defaultEndpoint, "effective endpoint should fall back to provider default")
+        assert(defaultInstance.effectiveModel == LLMProviderID.openAICompatible.defaultModel, "effective model should fall back to provider default")
 
         let custom = LLMInstance(
             id: secondID,
@@ -73,7 +73,7 @@ struct LLMInstanceTests {
 
         let added = keyStore.addInstance(provider: .anthropic)
         assert(added.provider == .anthropic, "addInstance should use requested provider")
-        assert(added.displayName == "Anthropic", "addInstance should default display name from provider")
+        assert(added.displayName == "", "addInstance should start with empty display name")
         assert(keyStore.instances.contains { $0.id == added.id }, "addInstance should append instance")
 
         keyStore.selectedInstanceID = added.id
@@ -85,7 +85,7 @@ struct LLMInstanceTests {
         deletedService = nil
         assert(keyStore.updateProvider(for: firstID, provider: .anthropic), "updateProvider should update an existing instance")
         assert(keyStore.instance(id: firstID)?.provider == .anthropic, "updateProvider should change provider")
-        assert(keyStore.instance(id: firstID)?.endpoint == LLMProviderID.anthropic.defaultEndpoint, "updateProvider should reset endpoint")
+        assert(keyStore.instance(id: firstID)?.endpoint == LLMProviderID.anthropic.defaultBaseURL, "updateProvider should reset endpoint")
         assert(keyStore.instance(id: firstID)?.model == LLMProviderID.anthropic.defaultModel, "updateProvider should reset model")
         assert(deletedService == defaultInstance.keychainService, "updateProvider should clear the previous provider key")
 

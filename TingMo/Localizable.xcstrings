@@ -1,15 +1,37 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%@ does not support %@. Pick another engine or language." : {
+    "" : {
+
+    },
+    "%@ — %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@ does not support %2$@. Pick another engine or language."
+            "value" : "%1$@ — %2$@"
           }
         }
       }
+    },
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%@ Settings" : {
+
+    },
+    "✓ %@" : {
+
+    },
+    "✓ Verified" : {
+
     },
     "A model named '%@' is already imported." : {
 
@@ -27,9 +49,6 @@
     "Accessibility permission is required to paste. Enable TingMo in System Settings → Privacy & Security → Accessibility." : {
 
     },
-    "Active" : {
-
-    },
     "Add Current App" : {
       "localizations" : {
         "zh-Hans" : {
@@ -44,12 +63,6 @@
 
     },
     "API key is missing. Enter it in Settings." : {
-
-    },
-    "API key saved in the Keychain. Use 'Test Connection' to verify." : {
-
-    },
-    "API keys are stored in the local Keychain by reference and are never written to presets or UserDefaults." : {
 
     },
     "Application Name" : {
@@ -78,13 +91,10 @@
         }
       }
     },
+    "Base URL" : {
+
+    },
     "Cancel" : {
-
-    },
-    "Clear" : {
-
-    },
-    "Clear Key" : {
 
     },
     "Clipboard" : {
@@ -93,10 +103,19 @@
     "Coming Soon" : {
 
     },
-    "Connection OK" : {
+    "Context" : {
 
     },
-    "Context" : {
+    "Correction" : {
+
+    },
+    "Correction Engine" : {
+
+    },
+    "Correction Models" : {
+
+    },
+    "Correction models store reusable LLM connections. API keys are stored locally with encryption; presets reference these models by name." : {
 
     },
     "Current endpoint: %@" : {
@@ -117,6 +136,12 @@
     "Delete" : {
 
     },
+    "Delete this model?" : {
+
+    },
+    "Delete this provider?" : {
+
+    },
     "Disk is full. Free up space and try again." : {
 
     },
@@ -129,9 +154,6 @@
           }
         }
       }
-    },
-    "Download" : {
-
     },
     "Download cancelled." : {
 
@@ -148,7 +170,13 @@
     "Drop or import a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc." : {
 
     },
+    "ElevenLabs" : {
+
+    },
     "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits." : {
+
+    },
+    "ElevenLabs Scribe" : {
 
     },
     "Embed in the camera notch area" : {
@@ -161,19 +189,7 @@
         }
       }
     },
-    "Enable LLM Correction" : {
-
-    },
-    "Endpoint" : {
-
-    },
     "Endpoint URL" : {
-
-    },
-    "Engine" : {
-
-    },
-    "Enter an API key to enable this engine." : {
 
     },
     "Excluded Apps" : {
@@ -190,6 +206,9 @@
 
     },
     "Failed to copy model: %@" : {
+
+    },
+    "Filter by language" : {
 
     },
     "Floating Window" : {
@@ -252,6 +271,12 @@
         }
       }
     },
+    "Groq" : {
+
+    },
+    "Groq Whisper" : {
+
+    },
     "Hotkey" : {
       "localizations" : {
         "zh-Hans" : {
@@ -275,6 +300,9 @@
     "https://example.com" : {
 
     },
+    "HuggingFace (Default)" : {
+
+    },
     "Idle" : {
 
     },
@@ -287,16 +315,10 @@
     "Imported Models" : {
 
     },
-    "Incompatible" : {
-
-    },
-    "Incompatible with %@" : {
+    "In Preset" : {
 
     },
     "Input Text" : {
-
-    },
-    "Input: %@" : {
 
     },
     "Installed" : {
@@ -305,25 +327,10 @@
     "Invalid model: required bundle '%@' is missing." : {
 
     },
-    "Key optional" : {
-
-    },
-    "Key saved" : {
-
-    },
     "Knowledge Base" : {
 
     },
-    "Language" : {
-
-    },
-    "Loading…" : {
-
-    },
-    "Local" : {
-
-    },
-    "Local Engines" : {
+    "Local Provider" : {
 
     },
     "Log context for dogfood" : {
@@ -348,9 +355,6 @@
     "Microphone disconnected." : {
 
     },
-    "Missing API key" : {
-
-    },
     "Missing API Key" : {
 
     },
@@ -358,6 +362,9 @@
 
     },
     "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk." : {
+
+    },
+    "Models install to ~/Library/Application Support/TingMo/Models. Drop a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc to import." : {
 
     },
     "Network error: %@" : {
@@ -396,9 +403,6 @@
     "No internet connection." : {
 
     },
-    "No key" : {
-
-    },
     "No notch detected — will use Top Center mode" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -420,16 +424,16 @@
         }
       }
     },
-    "No remote engine configured. Add an API key below." : {
-
-    },
-    "Not downloaded" : {
+    "None" : {
 
     },
     "Not Downloaded" : {
 
     },
     "Not installed" : {
+
+    },
+    "Not Verified" : {
 
     },
     "Notch" : {
@@ -441,6 +445,9 @@
           }
         }
       }
+    },
+    "Off" : {
+
     },
     "Offline" : {
       "localizations" : {
@@ -492,7 +499,7 @@
         }
       }
     },
-    "Parakeet (English) — Coming Soon" : {
+    "Output Language" : {
 
     },
     "Per-item limit: %lld chars" : {
@@ -509,6 +516,12 @@
       }
     },
     "Preset Name" : {
+
+    },
+    "Preset: %@" : {
+
+    },
+    "Presets" : {
 
     },
     "Press a key..." : {
@@ -584,6 +597,12 @@
     "Rate limit exceeded. Retry after %llds." : {
 
     },
+    "Raw (原始值)" : {
+
+    },
+    "Recognition Engine" : {
+
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -597,13 +616,10 @@
     "Recording…" : {
 
     },
-    "Remote" : {
+    "Remote Provider" : {
 
     },
-    "Remote Engines" : {
-
-    },
-    "Remove" : {
+    "Remote providers store reusable API connections. Presets reference these by name." : {
 
     },
     "Remove historical device" : {
@@ -615,6 +631,9 @@
           }
         }
       }
+    },
+    "Rename" : {
+
     },
     "Request cancelled." : {
 
@@ -666,12 +685,6 @@
         }
       }
     },
-    "Save" : {
-
-    },
-    "Save Key" : {
-
-    },
     "Screen Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -682,11 +695,21 @@
         }
       }
     },
+    "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
+
+    },
     "Selected Text" : {
 
     },
-    "Server returned an error (%lld)." : {
-
+    "Server error (%lld)%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Server error (%1$lld)%2$@"
+          }
+        }
+      }
     },
     "Settings" : {
       "localizations" : {
@@ -748,11 +771,7 @@
         }
       }
     },
-    "Speech Model" : {
-
-    },
     "Speech Recognition" : {
-      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -792,7 +811,7 @@
         }
       }
     },
-    "System Default" : {
+    "System" : {
 
     },
     "System Prompt" : {
@@ -801,10 +820,7 @@
     "Temperature" : {
 
     },
-    "Test Connection" : {
-
-    },
-    "The default preset stores LLM configuration. Speech engine, model, language, device, and knowledge-base settings stay independent." : {
+    "Test" : {
 
     },
     "The global hotkey will be ignored in these applications." : {
@@ -820,7 +836,14 @@
     "The selected item is not a valid WhisperKit model folder." : {
 
     },
+    "This model is active in your preset. Deleting it will set the Correction Engine to None." : {
+
+    },
+    "This provider is active in your preset. Deleting it will reset the Speech Engine." : {
+
+    },
     "TingMo 听墨" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -849,13 +872,10 @@
     "Transcribing…" : {
 
     },
-    "Unavailable" : {
-
-    },
     "Unexpected response from the server." : {
 
     },
-    "Use" : {
+    "Untitled" : {
 
     },
     "Welcome to TingMo" : {
@@ -867,6 +887,9 @@
           }
         }
       }
+    },
+    "Whisper Models" : {
+
     },
     "WhisperKit Models" : {
 

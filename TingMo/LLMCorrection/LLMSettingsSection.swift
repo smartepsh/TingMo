@@ -3,19 +3,69 @@ import SwiftUI
 struct PresetSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
     @Bindable var instanceStore: LLMInstanceStore
+    @Bindable var sttInstanceStore: STTInstanceStore
+    @Bindable var engineRegistry: EngineRegistry
+    @State private var filterLanguages: Set<String> = []
 
     var body: some View {
         Section {
             TextField(String(localized: "Preset Name"), text: presetBinding(\.name))
                 .textFieldStyle(.roundedBorder)
 
-            Toggle(String(localized: "Enable LLM Correction"), isOn: presetBinding(\.correctionEnabled))
+            // Language filter (UI only)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(localized: "Filter by language"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    ForEach(LanguagePreference.availableLanguages) { lang in
+                        Toggle(lang.name, isOn: filterBinding(for: lang.code))
+                            .font(.caption)
+                    }
+                }
+            }
+
+            // Speech Engine picker
+            Picker(String(localized: "Speech Engine"), selection: speechEngineBinding) {
+                Text(String(localized: "None")).tag("" as String)
+
+                // Remote STT Instances (ready only)
+                if !readySTTInstances.isEmpty {
+                    Divider()
+                    ForEach(readySTTInstances) { instance in
+                        Text("\(instance.displayName) (\(instance.provider.displayName))")
+                            .tag("stt-instance-\(instance.id.uuidString)" as String)
+                    }
+                }
+
+                // Local WhisperKit Models (downloaded only)
+                if !readyWhisperKitEngines.isEmpty {
+                    Divider()
+                    ForEach(readyWhisperKitEngines, id: \.info.id) { engine in
+                        Text("\(engine.info.name) — \(engine.info.modelSize ?? "")")
+                            .tag(engine.info.id as String)
+                    }
+                }
+            }
+            .onAppear {
+                validateSpeechEngineSelection()
+            }
+
+            Picker(String(localized: "Output Language"), selection: outputLanguageBinding) {
+                Text(String(localized: "Raw (原始值)")).tag(ConfigPreset.rawOutputLanguage)
+                ForEach(LanguagePreference.availableLanguages) { lang in
+                    Text(lang.name).tag(lang.code)
+                }
+            }
 
             Picker(String(localized: "Correction Engine"), selection: llmInstanceBinding) {
                 Text(String(localized: "None")).tag(UUID?.none)
                 ForEach(instanceStore.instances) { instance in
                     Text(instance.displayName).tag(Optional(instance.id))
                 }
+            }
+            .onAppear {
+                validateLLMInstanceSelection()
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -49,6 +99,70 @@ struct PresetSettingsSection: View {
         }
     }
 
+    private func validateLLMInstanceSelection() {
+        if let id = presetStore.defaultPreset.llmInstanceID,
+           !instanceStore.instances.contains(where: { $0.id == id }) {
+            presetStore.defaultPreset.llmInstanceID = nil
+        }
+    }
+
+    private var whisperKitEngines: [any SpeechEngine] {
+        engineRegistry.engines.filter { engine in
+            guard engine is WhisperKitEngine else { return false }
+            if filterLanguages.isEmpty { return true }
+            return filterLanguages.allSatisfy { engine.supportsLanguage($0) }
+        }
+    }
+
+    private var readyWhisperKitEngines: [any SpeechEngine] {
+        whisperKitEngines.filter { $0.info.isReady }
+    }
+
+    private var filteredSTTInstances: [STTInstance] {
+        if filterLanguages.isEmpty { return sttInstanceStore.instances }
+        return sttInstanceStore.instances.filter { instance in
+            filterLanguages.allSatisfy { instance.provider.supportsLanguage($0) }
+        }
+    }
+
+    private var readySTTInstances: [STTInstance] {
+        filteredSTTInstances.filter { sttInstanceStore.hasAPIKey(for: $0) }
+    }
+
+    private var speechEngineBinding: Binding<String> {
+        Binding(
+            get: { presetStore.defaultPreset.speechEngineID },
+            set: { newValue in
+                presetStore.defaultPreset.speechEngineID = newValue
+                engineRegistry.setActiveEngine(newValue)
+            }
+        )
+    }
+
+    private func filterBinding(for code: String) -> Binding<Bool> {
+        Binding(
+            get: { filterLanguages.contains(code) },
+            set: { isSelected in
+                if isSelected {
+                    filterLanguages.insert(code)
+                } else {
+                    filterLanguages.remove(code)
+                }
+            }
+        )
+    }
+
+    private func validateSpeechEngineSelection() {
+        let currentID = presetStore.defaultPreset.speechEngineID
+        if currentID.hasPrefix("stt-instance-") {
+            let uuidString = currentID.replacingOccurrences(of: "stt-instance-", with: "")
+            if let uuid = UUID(uuidString: uuidString),
+               sttInstanceStore.instance(id: uuid) == nil {
+                presetStore.defaultPreset.speechEngineID = ConfigPreset.defaultSpeechEngineID
+            }
+        }
+    }
+
     private func presetBinding<Value>(_ keyPath: WritableKeyPath<ConfigPreset, Value>) -> Binding<Value> {
         Binding(
             get: { presetStore.defaultPreset[keyPath: keyPath] },
@@ -63,8 +177,15 @@ struct PresetSettingsSection: View {
         )
     }
 
+    private var outputLanguageBinding: Binding<String> {
+        Binding(
+            get: { presetStore.defaultPreset.outputLanguage },
+            set: { presetStore.defaultPreset.outputLanguage = $0 }
+        )
+    }
+
     private var footerText: String {
-        String(localized: "The default preset stores correction behavior and the selected LLM instance. API keys, endpoints, and models are managed in LLM Instances.")
+        String(localized: "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction.")
     }
 
     private var normalizedCorrectionTemperature: Double {
@@ -77,96 +198,354 @@ struct LLMInstanceSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
 
     @State private var apiKeys: [UUID: String] = [:]
-    @State private var savedKeyIDs: Set<UUID> = []
+    @State private var draftAPIKeys: [UUID: String] = [:]
+    @State private var pendingDeleteID: UUID?
+    @State private var activeDeleteID: UUID?
+    @State private var renamingID: UUID?
+    @State private var renameText: String = ""
+    @State private var expandedInstanceID: UUID?
+    @State private var isTesting: [UUID: Bool] = [:]
+    @State private var testResults: [UUID: TestResult] = [:]
+
+    // Draft state for onBlur save strategy
+    @State private var draftEndpoints: [UUID: String] = [:]
+    @State private var draftModels: [UUID: String] = [:]
+
+    enum TestResult {
+        case success
+        case failure(String)
+    }
 
     var body: some View {
         Section {
             ForEach(instanceStore.instances) { instance in
-                DisclosureGroup {
+                DisclosureGroup(isExpanded: expandedBinding(for: instance.id)) {
                     VStack(alignment: .leading, spacing: 8) {
-                        TextField(String(localized: "Name"), text: textBinding(for: instance.id, \.displayName))
-                            .textFieldStyle(.roundedBorder)
-
                         Picker(String(localized: "Provider"), selection: providerBinding(for: instance.id)) {
                             ForEach(LLMProviderID.allCases) { provider in
                                 Text(provider.displayName).tag(provider)
                             }
                         }
 
-                        TextField(String(localized: "Endpoint"), text: textBinding(for: instance.id, \.endpoint))
+                        TextField(String(localized: "Base URL"), text: draftEndpointBinding(for: instance.id))
                             .textFieldStyle(.roundedBorder)
                             .textContentType(.URL)
 
-                        TextField(String(localized: "Model"), text: textBinding(for: instance.id, \.model))
+                        TextField(String(localized: "Model"), text: draftModelBinding(for: instance.id))
                             .textFieldStyle(.roundedBorder)
 
-                        SecureField(String(localized: "API Key"), text: apiKeyBinding(for: instance.id))
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { saveAPIKey(for: instance.id) }
+                        SecureField(
+                            String(localized: "API Key"),
+                            text: apiKeyBinding(for: instance.id),
+                            prompt: keyPlaceholder(for: instance)
+                        )
+                        .textFieldStyle(.roundedBorder)
 
-                        HStack {
-                            Button(String(localized: "Save Key")) {
-                                saveAPIKey(for: instance.id)
+                        if !instanceIsVerified(instance) {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    Task { await runTest(for: instance) }
+                                } label: {
+                                    if isTesting[instance.id, default: false] {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "bolt.fill")
+                                                .font(.caption)
+                                            Text(String(localized: "Test"))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .foregroundStyle(.tint)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(.tint, lineWidth: 1)
+                                        )
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isTesting[instance.id, default: false]
+                                    || (!instanceStore.hasAPIKey(for: instance)
+                                        && (draftAPIKeys[instance.id] ?? "").isEmpty))
                             }
-                            .disabled(apiKeys[instance.id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                            Button(String(localized: "Clear Key"), role: .destructive) {
-                                clearAPIKey(for: instance.id)
-                            }
-                            .disabled(!instanceStore.hasAPIKey(for: instance) && apiKeys[instance.id, default: ""].isEmpty)
-
-                            Spacer()
-
-                            keyStatusLabel(for: instance)
                         }
 
-                        Button(String(localized: "Delete Instance"), role: .destructive) {
-                            deleteInstance(instance.id)
+                        if let result = testResults[instance.id] {
+                            if case .failure(let message) = result {
+                                Label(message, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
-                        .disabled(instanceStore.instances.count == 1)
                     }
                     .padding(.vertical, 4)
                 } label: {
-                    HStack {
-                        Text(instance.displayName)
-                        Spacer()
-                        Text(instance.provider.displayName)
-                            .foregroundStyle(.secondary)
-                    }
+                    instanceRowLabel(instance)
                 }
             }
-
-            Button(String(localized: "Add LLM Instance")) {
-                let instance = instanceStore.addInstance()
-                apiKeys[instance.id] = ""
+            .onChange(of: expandedInstanceID) { _, newID in
+                flushPreviousDrafts(keeping: newID)
             }
         } header: {
-            Text("LLM Instances")
+            HStack {
+                Text("Correction Models")
+                Spacer()
+                Button {
+                    let instance = instanceStore.addInstance()
+                    apiKeys[instance.id] = ""
+                    expandedInstanceID = instance.id
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+            }
         } footer: {
-            Text(String(localized: "Instances store reusable correction engine connections. API keys stay in the local macOS Keychain; presets and settings store only references."))
+            Text(String(localized: "Correction models store reusable LLM connections. API keys are stored locally with encryption; presets reference these models by name."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .onDisappear {
+            flushAllDrafts()
+        }
     }
 
-    private func textBinding(for id: UUID, _ keyPath: WritableKeyPath<LLMInstance, String>) -> Binding<String> {
+    // MARK: - Instance Row Label
+
+    @ViewBuilder
+    private func instanceRowLabel(_ instance: LLMInstance) -> some View {
+        HStack(spacing: 6) {
+            Text(instance.displayName.isEmpty ? String(localized: "Untitled") : instance.displayName)
+                .lineLimit(1)
+                .foregroundStyle(instance.displayName.isEmpty ? .secondary : .primary)
+            Button {
+                renameText = instance.displayName
+                renamingID = instance.id
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .popover(isPresented: renameBinding(for: instance.id)) {
+                renamePopover(for: instance)
+            }
+            Spacer()
+            if presetStore.defaultPreset.llmInstanceID == instance.id {
+                Text(String(localized: "In Preset"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            }
+            if instanceIsVerified(instance) {
+                Text(String(localized: "✓ Verified"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            } else {
+                Text(String(localized: "Not Verified"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+            }
+            Text(instance.provider.displayName)
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            deleteButton(for: instance)
+        }
+    }
+
+    private func expandedBinding(for id: UUID) -> Binding<Bool> {
         Binding(
-            get: { instanceStore.instance(id: id)?[keyPath: keyPath] ?? "" },
-            set: { value in
-                guard var instance = instanceStore.instance(id: id) else { return }
-                instance[keyPath: keyPath] = value
-                instanceStore.upsert(instance)
+            get: { expandedInstanceID == id },
+            set: { expandedInstanceID = $0 ? id : nil }
+        )
+    }
+
+    private func renameBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { renamingID == id },
+            set: { if !$0 { renamingID = nil } }
+        )
+    }
+
+    @ViewBuilder
+    private func renamePopover(for instance: LLMInstance) -> some View {
+        VStack(spacing: 8) {
+            TextField(instance.displayName, text: $renameText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 200)
+                .onSubmit { commitRename(instance.id) }
+            HStack {
+                Button(String(localized: "Cancel")) {
+                    renamingID = nil
+                }
+                .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Rename")) {
+                    commitRename(instance.id)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding()
+    }
+
+    private func commitRename(_ id: UUID) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var instance = instanceStore.instance(id: id) else {
+            renamingID = nil
+            return
+        }
+        instance.displayName = trimmed
+        instanceStore.upsert(instance)
+        renamingID = nil
+    }
+
+    @ViewBuilder
+    private func deleteButton(for instance: LLMInstance) -> some View {
+        let isActive = presetStore.defaultPreset.llmInstanceID == instance.id
+        let isPending = pendingDeleteID == instance.id
+        Button {
+            if isActive {
+                activeDeleteID = instance.id
+            } else if isPending {
+                deleteInstance(instance.id)
+            } else {
+                pendingDeleteID = instance.id
+            }
+        } label: {
+            Image(systemName: "trash")
+                .foregroundStyle(isPending ? .red : .secondary)
+        }
+        .buttonStyle(.borderless)
+        .confirmationDialog(
+            String(localized: "Delete this model?"),
+            isPresented: Binding(
+                get: { activeDeleteID == instance.id },
+                set: { if !$0 { activeDeleteID = nil } }
+            ),
+            presenting: instance
+        ) { _ in
+            Button(String(localized: "Delete"), role: .destructive) {
+                deleteInstance(instance.id)
+            }
+        } message: { _ in
+            Text(String(localized: "This model is active in your preset. Deleting it will set the Correction Engine to None."))
+        }
+        .onHover { inside in
+            if !inside && isPending {
+                pendingDeleteID = nil
+            }
+        }
+    }
+
+    // MARK: - Verification
+
+    private func instanceIsVerified(_ instance: LLMInstance) -> Bool {
+        guard let stored = instance.verifiedFingerprint, !stored.isEmpty else { return false }
+        let hint = EncryptedKeyStore.keyHint(service: instance.keychainService)
+        // Use draft values if available, otherwise stored values
+        var copy = instance
+        if let draft = draftEndpoints[instance.id] { copy.endpoint = draft }
+        if let draft = draftModels[instance.id] { copy.model = draft }
+        return stored == copy.computeFingerprint(apiKeyHint: hint)
+    }
+
+    // MARK: - Draft Bindings (onBlur save)
+
+    private func draftEndpointBinding(for id: UUID) -> Binding<String> {
+        Binding(
+            get: { draftEndpoints[id, default: instanceStore.instance(id: id)?.endpoint ?? ""] },
+            set: { newValue in
+                let oldValue = draftEndpoints[id, default: instanceStore.instance(id: id)?.endpoint ?? ""]
+                draftEndpoints[id] = newValue
+                if newValue != oldValue {
+                    clearVerifiedFingerprint(for: id)
+                }
             }
         )
+    }
+
+    private func draftModelBinding(for id: UUID) -> Binding<String> {
+        Binding(
+            get: { draftModels[id, default: instanceStore.instance(id: id)?.model ?? ""] },
+            set: { newValue in
+                let oldValue = draftModels[id, default: instanceStore.instance(id: id)?.model ?? ""]
+                draftModels[id] = newValue
+                if newValue != oldValue {
+                    clearVerifiedFingerprint(for: id)
+                }
+            }
+        )
+    }
+
+    private func clearVerifiedFingerprint(for id: UUID) {
+        guard var instance = instanceStore.instance(id: id),
+              instance.verifiedFingerprint != nil else { return }
+        instance.verifiedFingerprint = nil
+        instanceStore.upsert(instance)
+    }
+
+    // MARK: - Flush Drafts
+
+    private func flushDrafts(for id: UUID) {
+        guard var instance = instanceStore.instance(id: id) else { return }
+        var changed = false
+        if let endpoint = draftEndpoints.removeValue(forKey: id) {
+            instance.endpoint = endpoint
+            changed = true
+        }
+        if let model = draftModels.removeValue(forKey: id) {
+            instance.model = model
+            changed = true
+        }
+        if let key = draftAPIKeys.removeValue(forKey: id) {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                _ = instanceStore.clearAPIKey(for: instance)
+                testResults[id] = nil
+            } else {
+                _ = instanceStore.saveAPIKey(trimmed, for: instance)
+            }
+        }
+        if changed {
+            instanceStore.upsert(instance)
+        }
+    }
+
+    private func flushPreviousDrafts(keeping newID: UUID?) {
+        let allIDs = Set(draftEndpoints.keys).union(draftModels.keys).union(draftAPIKeys.keys)
+        for id in allIDs where id != newID {
+            flushDrafts(for: id)
+        }
+    }
+
+    private func flushAllDrafts() {
+        let ids = Set(draftEndpoints.keys).union(draftModels.keys).union(draftAPIKeys.keys)
+        for id in ids {
+            flushDrafts(for: id)
+        }
     }
 
     private func providerBinding(for id: UUID) -> Binding<LLMProviderID> {
         Binding(
             get: { instanceStore.instance(id: id)?.provider ?? .openAICompatible },
             set: { provider in
+                // Flush any pending drafts before switching provider
+                flushDrafts(for: id)
                 guard instanceStore.updateProvider(for: id, provider: provider) else { return }
-                savedKeyIDs.remove(id)
                 apiKeys[id] = ""
+                // Provider change invalidates fingerprint
+                clearVerifiedFingerprint(for: id)
+                testResults[id] = nil
             }
         )
     }
@@ -174,35 +553,23 @@ struct LLMInstanceSettingsSection: View {
     private func apiKeyBinding(for id: UUID) -> Binding<String> {
         Binding(
             get: { apiKeys[id, default: ""] },
-            set: { apiKeys[id] = $0 }
+            set: { newValue in
+                let oldValue = apiKeys[id, default: ""]
+                if newValue != oldValue {
+                    apiKeys[id] = newValue
+                    draftAPIKeys[id] = newValue
+                    clearVerifiedFingerprint(for: id)
+                }
+            }
         )
     }
 
-    private func keyStatusLabel(for instance: LLMInstance) -> some View {
-        Group {
-            if instanceStore.hasAPIKey(for: instance) || savedKeyIDs.contains(instance.id) {
-                Label(String(localized: "Key saved"), systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Label(String(localized: "No key"), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-            }
+    private func keyPlaceholder(for instance: LLMInstance) -> Text {
+        if instanceStore.hasAPIKey(for: instance),
+           let hint = EncryptedKeyStore.keyHint(service: instance.keychainService) {
+            return Text(hint)
         }
-        .font(.caption)
-    }
-
-    private func saveAPIKey(for id: UUID) {
-        guard let instance = instanceStore.instance(id: id) else { return }
-        guard instanceStore.saveAPIKey(apiKeys[id, default: ""], for: instance) else { return }
-        apiKeys[id] = ""
-        savedKeyIDs.insert(id)
-    }
-
-    private func clearAPIKey(for id: UUID) {
-        guard let instance = instanceStore.instance(id: id) else { return }
-        _ = instanceStore.clearAPIKey(for: instance)
-        apiKeys[id] = ""
-        savedKeyIDs.remove(id)
+        return Text("")
     }
 
     private func deleteInstance(_ id: UUID) {
@@ -212,6 +579,47 @@ struct LLMInstanceSettingsSection: View {
             fallbackID: instanceStore.instances.first?.id
         )
         apiKeys[id] = nil
-        savedKeyIDs.remove(id)
+        draftAPIKeys[id] = nil
+        pendingDeleteID = nil
+    }
+
+    private func runTest(for instance: LLMInstance) async {
+        guard isTesting[instance.id, default: false] == false else { return }
+        isTesting[instance.id] = true
+        defer { isTesting[instance.id] = false }
+
+        // Flush any pending drafts before testing
+        flushDrafts(for: instance.id)
+
+        guard let freshInstance = instanceStore.instance(id: instance.id) else { return }
+
+        let config = LLMConfig(
+            enabled: true,
+            provider: freshInstance.provider,
+            endpoint: freshInstance.effectiveBaseURL,
+            model: freshInstance.effectiveModel,
+            keychainService: freshInstance.keychainService
+        )
+
+        let provider: any LLMProvider
+        switch freshInstance.provider.wireFormat {
+        case .openai:
+            provider = OpenAICompatibleLLMProvider()
+        case .anthropic:
+            provider = AnthropicLLMProvider()
+        }
+
+        if let error = await provider.runConnectivityCheck(config) {
+            testResults[freshInstance.id] = .failure(error.localizedDescription)
+            // Clear verified on failure
+            clearVerifiedFingerprint(for: freshInstance.id)
+        } else {
+            testResults[freshInstance.id] = .success
+            // Set verified fingerprint on success
+            var updated = freshInstance
+            let hint = EncryptedKeyStore.keyHint(service: freshInstance.keychainService)
+            updated.verifiedFingerprint = updated.computeFingerprint(apiKeyHint: hint)
+            instanceStore.upsert(updated)
+        }
     }
 }

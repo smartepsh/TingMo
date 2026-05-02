@@ -26,7 +26,7 @@ final class AudioCapture {
             }
         }
     }
-
+    
     private let engine = AVAudioEngine()
     private var file: AVAudioFile?
     private var fileURL: URL?
@@ -58,6 +58,9 @@ final class AudioCapture {
                 NSLog("[TingMo] AudioCapture failed to bind device uid=\(uid): \(error); falling back to system default")
             }
         }
+
+        // Prepare engine to sync internal state after device change
+        engine.prepare()
 
         let inputFormat = input.outputFormat(forBus: 0)
 
@@ -101,8 +104,6 @@ final class AudioCapture {
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             self?.handleBuffer(buffer)
         }
-
-        engine.prepare()
 
         do {
             try engine.start()

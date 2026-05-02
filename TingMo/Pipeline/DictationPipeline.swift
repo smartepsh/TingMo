@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// High-level dictation coordinator: capture audio → transcribe → inject text.
+/// High-level dictation coordinator: capture audio → transcribe → translate → inject text.
 ///
 /// State machine:
 ///   idle → recording (on start)
@@ -37,11 +37,6 @@ final class DictationPipeline {
     private(set) var state: State = .idle
     /// Last error surfaced by the pipeline, cleared on next start.
     var lastError: Error?
-
-    /// Language tag passed to the engine (ISO code). Read from the active preset.
-    var language: String {
-        presetStore.defaultPreset.languageCode
-    }
 
     private let registry: EngineRegistry
     private let languagePreference: LanguagePreference
@@ -145,7 +140,8 @@ final class DictationPipeline {
                 try await whisper.loadModel()
             }
 
-            let stream = try await engine.transcribe(audioURL: audioURL, language: language)
+            // Pass empty language for auto-detect (multi-language input)
+            let stream = try await engine.transcribe(audioURL: audioURL, language: "")
 
             var collected = ""
             for await result in stream {
@@ -164,7 +160,8 @@ final class DictationPipeline {
                 return
             }
 
-            let correctionResult = await correctIfNeeded(normalized)
+            let finalText = await translateIfNeeded(normalized)
+            let correctionResult = await correctIfNeeded(finalText)
             try await TextInjector.shared.inject(correctionResult.text)
             await finish(error: correctionResult.warning)
         } catch {
@@ -173,9 +170,59 @@ final class DictationPipeline {
         }
     }
 
+    // MARK: - Translation
+
+    private func translateIfNeeded(_ transcript: String) async -> String {
+        let outputLanguage = presetStore.defaultPreset.outputLanguage
+
+        // No translation if output is "raw" or empty
+        guard outputLanguage != ConfigPreset.rawOutputLanguage, !outputLanguage.isEmpty else {
+            return transcript
+        }
+
+        // Check if LLM is available for translation
+        guard let llmConfig = llmInstanceStore.llmConfig(for: presetStore.defaultPreset) else {
+            NSLog("[TingMo] No LLM configured for translation, returning raw transcript")
+            return transcript
+        }
+
+        do {
+            let targetLanguageName = LanguagePreference.displayName(for: outputLanguage)
+            let translationPrompt = """
+            Translate the following text to \(targetLanguageName).
+            Preserve the original meaning and tone. Output ONLY the translated text, nothing else.
+
+            Text to translate:
+            \(transcript)
+            """
+
+            let translationConfig = LLMConfig(
+                enabled: true,
+                provider: llmConfig.provider,
+                endpoint: llmConfig.endpoint,
+                model: llmConfig.model,
+                systemPrompt: translationPrompt,
+                temperature: 0.3,
+                keychainService: llmConfig.keychainService
+            )
+
+            let translated = try await correctionService.correct(
+                transcript: transcript,
+                context: [],
+                config: translationConfig
+            )
+            return translated
+        } catch {
+            NSLog("[TingMo] Translation failed, falling back to raw transcript: \(error)")
+            return transcript
+        }
+    }
+
+    // MARK: - Correction
+
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
         let preset = presetStore.defaultPreset
-        guard preset.correctionEnabled else { return (transcript, nil) }
+        guard preset.llmInstanceID != nil else { return (transcript, nil) }
         guard let llmConfig = llmInstanceStore.llmConfig(for: preset) else {
             return (transcript, PipelineError.notReady(reason: "No LLM correction instance selected."))
         }

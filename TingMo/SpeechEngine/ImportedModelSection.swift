@@ -12,10 +12,12 @@ struct ImportedModelSection: View {
     @State private var showingImporter = false
     @State private var lastError: String?
     @State private var isTargeted = false
+    @State private var pendingRemoveModelID: String?
 
     var body: some View {
         Section {
             ForEach(importedModelStore.models) { model in
+                let isPending = pendingRemoveModelID == model.id
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(model.displayName).fontWeight(.medium)
@@ -26,8 +28,22 @@ struct ImportedModelSection: View {
                             .truncationMode(.middle)
                     }
                     Spacer()
-                    Button(String(localized: "Remove"), role: .destructive) {
-                        remove(model)
+                    Button {
+                        if isPending {
+                            remove(model)
+                            pendingRemoveModelID = nil
+                        } else {
+                            pendingRemoveModelID = model.id
+                        }
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(isPending ? .red : .secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .onHover { inside in
+                        if !inside && isPending {
+                            pendingRemoveModelID = nil
+                        }
                     }
                 }
             }

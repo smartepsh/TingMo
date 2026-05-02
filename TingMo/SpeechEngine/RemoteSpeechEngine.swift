@@ -8,7 +8,7 @@ enum RemoteAuthStyle: Sendable {
 }
 
 /// Static description of a remote STT provider.
-/// Runtime secrets (API key) are fetched from Keychain via `keychainService`.
+/// Runtime secrets (API key) are fetched from `EncryptedKeyStore` via `keychainService`.
 struct RemoteEngineConfig: Sendable {
     var id: String
     var name: String
@@ -97,8 +97,9 @@ enum RemoteEngineError: LocalizedError {
                 return String(localized: "Rate limit exceeded. Retry after \(Int(retry))s.")
             }
             return String(localized: "Rate limit exceeded.")
-        case .server(let status, _):
-            return String(localized: "Server returned an error (\(status)).")
+        case .server(let status, let body):
+            let detail = Self.extractErrorMessage(from: body) ?? ""
+            return String(localized: "Server error (\(status))\(detail.isEmpty ? "" : ": \(detail)")")
         case .network(let err):
             return String(localized: "Network error: \(err.localizedDescription)")
         case .timeout:
@@ -108,6 +109,15 @@ enum RemoteEngineError: LocalizedError {
         case .invalidResponse:
             return String(localized: "Unexpected response from the server.")
         }
+    }
+
+    private static func extractErrorMessage(from body: String?) -> String? {
+        guard let body, let data = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? [String: Any],
+              let message = error["message"] as? String, !message.isEmpty
+        else { return body }
+        return message
     }
 }
 
@@ -130,7 +140,7 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
 
     init(config: RemoteEngineConfig) {
         self.config = config
-        let keyPresent = (KeychainStore.get(service: config.keychainService) ?? "").isEmpty == false
+        let keyPresent = (EncryptedKeyStore.get(service: config.keychainService) ?? "").isEmpty == false
         self.info = EngineInfo(
             id: config.id,
             name: config.name,
@@ -145,12 +155,12 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// Refresh `info.isReady` based on the current keychain state. Call this
     /// after the user adds/removes an API key so UI picks up the change.
     func refreshReadiness() {
-        let keyPresent = (KeychainStore.get(service: config.keychainService) ?? "").isEmpty == false
+        let keyPresent = (EncryptedKeyStore.get(service: config.keychainService) ?? "").isEmpty == false
         info.isReady = keyPresent
     }
 
     func transcribe(audioURL: URL, language: String) async throws -> AsyncStream<TranscriptionResult> {
-        guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
+        guard let apiKey = EncryptedKeyStore.get(service: config.keychainService), !apiKey.isEmpty else {
             throw RemoteEngineError.missingAPIKey
         }
         if !language.isEmpty, !supportsLanguage(language) {
@@ -176,7 +186,7 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
     /// Issue a cheap auth check against the provider. Returns `nil` on
     /// success, or a `RemoteEngineError` describing the failure.
     func runConnectivityCheck() async -> RemoteEngineError? {
-        guard let apiKey = KeychainStore.get(service: config.keychainService), !apiKey.isEmpty else {
+        guard let apiKey = EncryptedKeyStore.get(service: config.keychainService), !apiKey.isEmpty else {
             return .missingAPIKey
         }
         guard let mode = config.healthcheckMode else {
@@ -410,5 +420,47 @@ final class RemoteSpeechEngine: SpeechEngine, @unchecked Sendable {
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(value)\r\n".data(using: .utf8)!)
+    }
+}
+
+extension RemoteSpeechEngine {
+    /// Create a RemoteSpeechEngine from an STTInstance.
+    /// Builds the appropriate RemoteEngineConfig based on the instance's provider.
+    convenience init(instance: STTInstance) {
+        let config = Self.config(for: instance.provider, instanceID: instance.id, keychainService: instance.keychainService)
+        self.init(config: config)
+    }
+
+    private static func config(for provider: STTProviderID, instanceID: UUID, keychainService: String) -> RemoteEngineConfig {
+        switch provider {
+        case .groq:
+            RemoteEngineConfig(
+                id: "stt-instance-\(instanceID.uuidString)",
+                name: provider.defaultInstanceName,
+                endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+                modelFieldName: "model",
+                modelValue: "whisper-large-v3",
+                languageFieldName: "language",
+                keychainService: keychainService,
+                authStyle: .bearer,
+                supportedLanguages: provider.supportedLanguages,
+                healthcheckMode: .get(url: "https://api.groq.com/openai/v1/models"),
+                billingNote: nil
+            )
+        case .elevenlabs:
+            RemoteEngineConfig(
+                id: "stt-instance-\(instanceID.uuidString)",
+                name: provider.defaultInstanceName,
+                endpoint: "https://api.elevenlabs.io/v1/speech-to-text",
+                modelFieldName: "model_id",
+                modelValue: "scribe_v1",
+                languageFieldName: "language_code",
+                keychainService: keychainService,
+                authStyle: .xiAPIKey,
+                supportedLanguages: provider.supportedLanguages,
+                healthcheckMode: .postSTT,
+                billingNote: String(localized: "ElevenLabs bills per audio minute. Check your dashboard for usage and rate limits.")
+            )
+        }
     }
 }

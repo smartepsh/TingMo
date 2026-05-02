@@ -36,6 +36,9 @@ final class AudioCaptureService {
             try selectInputDevice(uid: uid, on: engine)
         }
 
+        // Prepare engine to sync internal state after device change
+        engine.prepare()
+
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
