@@ -29,6 +29,8 @@ final class ContextSettingsStore {
         didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Self.debugLoggingEnabledKey) }
     }
 
+    var lastDiagnostics: ContextDiagnostics?
+
     private static let maxCharactersPerItemKey = "ContextSettingsStore.maxCharactersPerItem"
     private static let maxTotalCharactersKey = "ContextSettingsStore.maxTotalCharacters"
     private static let debugLoggingEnabledKey = "ContextSettingsStore.debugLoggingEnabled"
