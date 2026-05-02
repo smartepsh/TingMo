@@ -119,34 +119,115 @@ struct ContextAggregator {
         self.settings = settings
     }
 
-    func collect() -> [LLMContextItem] {
-        var remainingBudget = settings.maxTotalCharacters
-        let prioritized = collector.collect()
-            .compactMap { item -> LLMContextItem? in
-                guard !item.isSensitive else { return nil }
-                let config = settings.config(for: item.kind)
-                guard config.enabled else { return nil }
-
-                let trimmed = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return nil }
-
-                var normalized = item
-                normalized.priority = config.priority
-                normalized.text = trimmed
-                return normalized
+    func collect() -> ([LLMContextItem], ContextDiagnostics?) {
+        let rawCollected = collector.collect()
+        let diagnosticsEnabled = settings.debugLoggingEnabled
+        
+        var rawDiagnosticItems: [ContextDiagnosticItem] = []
+        var filteredDiagnosticItems: [ContextDiagnosticItem] = []
+        
+        let filtered = rawCollected.compactMap { item -> LLMContextItem? in
+            let trimmed = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if item.isSensitive {
+                if diagnosticsEnabled {
+                    rawDiagnosticItems.append(ContextDiagnosticItem(
+                        kind: item.kind, text: item.text, priority: item.priority,
+                        characterCount: item.text.count, isTruncated: false,
+                        isFiltered: true, filterReason: .sensitiveContent
+                    ))
+                }
+                return nil
             }
-            .sorted { lhs, rhs in
-                lhs.priority == rhs.priority ? lhs.kind.rawValue < rhs.kind.rawValue : lhs.priority < rhs.priority
+            
+            let config = settings.config(for: item.kind)
+            if !config.enabled {
+                if diagnosticsEnabled {
+                    rawDiagnosticItems.append(ContextDiagnosticItem(
+                        kind: item.kind, text: item.text, priority: item.priority,
+                        characterCount: item.text.count, isTruncated: false,
+                        isFiltered: true, filterReason: .disabledByUser
+                    ))
+                }
+                return nil
             }
-
-        return prioritized.compactMap { item in
-            guard remainingBudget > 0 else { return nil }
-            let perItemBudget = max(1, min(settings.maxCharactersPerItem, remainingBudget))
+            
+            if trimmed.isEmpty {
+                if diagnosticsEnabled {
+                    rawDiagnosticItems.append(ContextDiagnosticItem(
+                        kind: item.kind, text: item.text, priority: item.priority,
+                        characterCount: item.text.count, isTruncated: false,
+                        isFiltered: true, filterReason: .emptyText
+                    ))
+                }
+                return nil
+            }
+            
             var normalized = item
-            normalized.text = String(item.text.prefix(perItemBudget))
-            remainingBudget -= normalized.text.count
+            normalized.priority = config.priority
+            normalized.text = trimmed
+            
+            if diagnosticsEnabled {
+                rawDiagnosticItems.append(ContextDiagnosticItem(
+                    kind: item.kind, text: trimmed, priority: config.priority,
+                    characterCount: trimmed.count, isTruncated: false,
+                    isFiltered: false, filterReason: nil
+                ))
+            }
+            
             return normalized
         }
+        
+        let sorted = filtered.sorted { lhs, rhs in
+            lhs.priority == rhs.priority ? lhs.kind.rawValue < rhs.kind.rawValue : lhs.priority < rhs.priority
+        }
+        
+        var remainingBudget = settings.maxTotalCharacters
+        var usedBudget = 0
+        let final = sorted.compactMap { item -> LLMContextItem? in
+            guard remainingBudget > 0 else {
+                if diagnosticsEnabled {
+                    filteredDiagnosticItems.append(ContextDiagnosticItem(
+                        kind: item.kind, text: item.text, priority: item.priority,
+                        characterCount: item.text.count, isTruncated: false,
+                        isFiltered: true, filterReason: .budgetExceeded
+                    ))
+                }
+                return nil
+            }
+            
+            let perItemBudget = max(1, min(settings.maxCharactersPerItem, remainingBudget))
+            let originalLength = item.text.count
+            let truncatedText = String(item.text.prefix(perItemBudget))
+            let isTruncated = originalLength > truncatedText.count
+            
+            var normalized = item
+            normalized.text = truncatedText
+            remainingBudget -= truncatedText.count
+            usedBudget += truncatedText.count
+            
+            if diagnosticsEnabled {
+                filteredDiagnosticItems.append(ContextDiagnosticItem(
+                    kind: item.kind, text: truncatedText, priority: item.priority,
+                    characterCount: truncatedText.count, isTruncated: isTruncated,
+                    isFiltered: false, filterReason: nil
+                ))
+            }
+            
+            return normalized
+        }
+        
+        let diagnostics: ContextDiagnostics? = diagnosticsEnabled
+            ? ContextDiagnostics(
+                rawItems: rawDiagnosticItems,
+                finalItems: filteredDiagnosticItems,
+                timestamp: Date(),
+                totalBudget: settings.maxTotalCharacters,
+                usedBudget: usedBudget
+            )
+            : nil
+        
+        return (final, diagnostics)
     }
 }
 

@@ -228,7 +228,7 @@ final class DictationPipeline {
         }
 
         do {
-            let context = ContextAggregator(settings: contextSettings).collect()
+            let (context, _) = ContextAggregator(settings: contextSettings).collect()
             if contextSettings.debugLoggingEnabled {
                 ContextDebugLogger.log(context)
             }
