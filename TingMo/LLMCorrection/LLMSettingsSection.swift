@@ -241,18 +241,31 @@ struct LLMInstanceSettingsSection: View {
                         )
                         .textFieldStyle(.roundedBorder)
 
-                        HStack {
-                            Spacer()
-                            Button {
-                                Task { await runTest(for: instance) }
-                            } label: {
-                                if isTesting[instance.id, default: false] {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Text(String(localized: "Test Connection"))
+                        if !instanceIsVerified(instance) {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    Task { await runTest(for: instance) }
+                                } label: {
+                                    if isTesting[instance.id, default: false] {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "bolt.fill")
+                                                .font(.caption)
+                                            Text(String(localized: "Test"))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(.blue)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                    }
                                 }
+                                .disabled(isTesting[instance.id, default: false] || !instanceStore.hasAPIKey(for: instance))
                             }
-                            .disabled(isTesting[instance.id, default: false] || !instanceStore.hasAPIKey(for: instance))
                         }
 
                         if let result = testResults[instance.id] {
