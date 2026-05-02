@@ -203,6 +203,13 @@ struct LLMInstanceSettingsSection: View {
     @State private var renamingID: UUID?
     @State private var renameText: String = ""
     @State private var expandedInstanceID: UUID?
+    @State private var isTesting: [UUID: Bool] = [:]
+    @State private var testResults: [UUID: TestResult] = [:]
+
+    enum TestResult {
+        case success
+        case failure(String)
+    }
 
     var body: some View {
         Section {
@@ -229,6 +236,44 @@ struct LLMInstanceSettingsSection: View {
                         )
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { saveAPIKey(for: instance.id) }
+
+                        HStack {
+                            Button(String(localized: "Save")) {
+                                saveAPIKey(for: instance.id)
+                            }
+                            .disabled((apiKeys[instance.id] ?? "").isEmpty && !instanceStore.hasAPIKey(for: instance))
+
+                            Button(String(localized: "Clear"), role: .destructive) {
+                                clearAPIKey(for: instance)
+                            }
+                            .disabled(!instanceStore.hasAPIKey(for: instance) && (apiKeys[instance.id] ?? "").isEmpty)
+
+                            Spacer()
+
+                            Button {
+                                Task { await runTest(for: instance) }
+                            } label: {
+                                if isTesting[instance.id, default: false] {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Text(String(localized: "Test Connection"))
+                                }
+                            }
+                            .disabled(isTesting[instance.id, default: false] || !instanceStore.hasAPIKey(for: instance))
+                        }
+
+                        if let result = testResults[instance.id] {
+                            switch result {
+                            case .success:
+                                Label(String(localized: "Connection OK"), systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            case .failure(let message):
+                                Label(message, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
                     }
                     .padding(.vertical, 4)
                 } label: {
@@ -418,5 +463,38 @@ struct LLMInstanceSettingsSection: View {
         )
         apiKeys[id] = nil
         pendingDeleteID = nil
+    }
+
+    private func clearAPIKey(for instance: LLMInstance) {
+        _ = instanceStore.clearAPIKey(for: instance)
+        apiKeys[instance.id] = nil
+        testResults[instance.id] = nil
+    }
+
+    private func runTest(for instance: LLMInstance) async {
+        isTesting[instance.id] = true
+        defer { isTesting[instance.id] = false }
+
+        let config = LLMConfig(
+            enabled: true,
+            provider: instance.provider,
+            endpoint: instance.effectiveBaseURL,
+            model: instance.effectiveModel,
+            keychainService: instance.keychainService
+        )
+
+        let provider: any LLMProvider
+        switch instance.provider.wireFormat {
+        case .openai:
+            provider = OpenAICompatibleLLMProvider()
+        case .anthropic:
+            provider = AnthropicLLMProvider()
+        }
+
+        if let error = await provider.runConnectivityCheck(config) {
+            testResults[instance.id] = .failure(error.localizedDescription)
+        } else {
+            testResults[instance.id] = .success
+        }
     }
 }
