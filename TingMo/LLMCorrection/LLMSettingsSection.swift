@@ -256,12 +256,7 @@ struct LLMInstanceSettingsSection: View {
                         }
 
                         if let result = testResults[instance.id] {
-                            switch result {
-                            case .success:
-                                Label(String(localized: "Connection OK"), systemImage: "checkmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            case .failure(let message):
+                            if case .failure(let message) = result {
                                 Label(message, systemImage: "exclamationmark.triangle.fill")
                                     .font(.caption)
                                     .foregroundStyle(.red)
