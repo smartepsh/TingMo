@@ -9,6 +9,43 @@ struct AnthropicLLMProvider: LLMProvider {
         self.session = session
     }
 
+    func performConnectivityCheck(config: LLMConfig, apiKey: String) async -> LLMProviderError? {
+        guard let url = URL(string: config.effectiveEndpoint) else {
+            return .invalidEndpoint(config.effectiveEndpoint)
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+
+        let body: [String: Any] = [
+            "model": config.effectiveModel,
+            "max_tokens": 1,
+            "messages": [["role": "user", "content": "test"]]
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            switch status {
+            case 200..<300:
+                return nil
+            case 401, 403:
+                return .unauthorized
+            case 429:
+                return .rateLimited(retryAfter: nil)
+            default:
+                return .server(status: status, body: String(data: data, encoding: .utf8))
+            }
+        } catch {
+            return .network(underlying: error)
+        }
+    }
+
     func correct(_ request: LLMCorrectionRequest) async throws -> LLMCorrectionResponse {
         try validate(request.config)
 
