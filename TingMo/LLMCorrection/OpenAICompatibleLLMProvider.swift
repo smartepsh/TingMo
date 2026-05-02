@@ -74,6 +74,37 @@ struct OpenAICompatibleLLMProvider: LLMProvider {
         )
     }
 
+    func performConnectivityCheck(config: LLMConfig, apiKey: String) async -> LLMProviderError? {
+        let baseURL = config.effectiveBaseURL
+        guard let url = URL(string: baseURL + "/v1/models") else {
+            return .invalidEndpoint(baseURL)
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "GET"
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            switch status {
+            case 200..<300:
+                return nil
+            case 401, 403:
+                return .unauthorized
+            case 429:
+                return .rateLimited(retryAfter: nil)
+            default:
+                return .server(status: status, body: String(data: data, encoding: .utf8))
+            }
+        } catch {
+            return .network(underlying: error)
+        }
+    }
+
     private func makeMessages(for request: LLMCorrectionRequest) -> [ChatMessage] {
         [
             ChatMessage(role: "system", content: request.config.effectiveSystemPrompt),
