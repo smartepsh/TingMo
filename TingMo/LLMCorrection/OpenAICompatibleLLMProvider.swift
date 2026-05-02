@@ -75,20 +75,40 @@ struct OpenAICompatibleLLMProvider: LLMProvider {
     }
 
     func performConnectivityCheck(config: LLMConfig, apiKey: String) async -> LLMProviderError? {
-        let baseURL = config.effectiveBaseURL
-        guard let url = URL(string: baseURL + "/v1/models") else {
-            return .invalidEndpoint(baseURL)
+        guard let url = URL(string: config.effectiveEndpoint) else {
+            return .invalidEndpoint(config.effectiveEndpoint)
         }
 
+        let keyPreview = apiKey.isEmpty
+            ? "<empty>"
+            : "\(apiKey.prefix(4))...\(apiKey.suffix(4)) (len=\(apiKey.count))"
+        NSLog("[TingMo][LLM][check] provider=\(config.provider.rawValue) url=\(url.absoluteString) model=\(config.effectiveModel) keychainService=\(config.effectiveKeychainService) apiKey=\(keyPreview)")
+
         var request = URLRequest(url: url, timeoutInterval: 15)
-        request.httpMethod = "GET"
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        let body = ChatCompletionRequest(
+            model: config.effectiveModel,
+            messages: [ChatMessage(role: "user", content: "hi")],
+            temperature: 0,
+            maxTokens: 1,
+            thinking: .init(type: "disabled")
+        )
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            return .network(underlying: error)
         }
 
         do {
             let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let bodyPreview = String(data: data, encoding: .utf8)?.prefix(500) ?? ""
+            NSLog("[TingMo][LLM][check] status=\(status) body=\(bodyPreview)")
 
             switch status {
             case 200..<300:
@@ -101,6 +121,7 @@ struct OpenAICompatibleLLMProvider: LLMProvider {
                 return .server(status: status, body: String(data: data, encoding: .utf8))
             }
         } catch {
+            NSLog("[TingMo][LLM][check] network error: \(error)")
             return .network(underlying: error)
         }
     }
@@ -158,6 +179,20 @@ private struct ChatCompletionRequest: Encodable {
     var model: String
     var messages: [ChatMessage]
     var temperature: Double
+    var maxTokens: Int?
+    var thinking: ThinkingConfig?
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case temperature
+        case maxTokens = "max_tokens"
+        case thinking
+    }
+
+    struct ThinkingConfig: Encodable {
+        var type: String
+    }
 }
 
 private struct ChatMessage: Codable, Equatable {

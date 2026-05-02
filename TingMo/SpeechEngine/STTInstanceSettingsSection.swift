@@ -6,6 +6,7 @@ struct STTInstanceSettingsSection: View {
     @Bindable var presetStore: ConfigPresetStore
 
     @State private var apiKeys: [UUID: String] = [:]
+    @State private var draftAPIKeys: [UUID: String] = [:]
     @State private var pendingDeleteID: UUID?
     @State private var activeDeleteID: UUID?
     @State private var renamingID: UUID?
@@ -31,52 +32,48 @@ struct STTInstanceSettingsSection: View {
             ForEach(instanceStore.instances) { instance in
                 DisclosureGroup(isExpanded: expandedBinding(for: instance.id)) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker(String(localized: "Provider"), selection: providerBinding(for: instance.id)) {
-                            ForEach(STTProviderID.allCases) { provider in
-                                Text(provider.displayName).tag(provider)
-                            }
-                        }
-
                         SecureField(
                             String(localized: "API Key"),
                             text: apiKeyBinding(for: instance.id),
                             prompt: keyPlaceholder(for: instance)
                         )
                         .textFieldStyle(.roundedBorder)
-                        .onSubmit { saveAPIKey(for: instance.id) }
 
                         HStack {
-                            Button(String(localized: "Save")) {
-                                saveAPIKey(for: instance.id)
-                            }
-                            .disabled((apiKeys[instance.id] ?? "").isEmpty && !instanceStore.hasAPIKey(for: instance))
-
-                            Button(String(localized: "Clear"), role: .destructive) {
-                                clearAPIKey(for: instance)
-                            }
-                            .disabled(!instanceStore.hasAPIKey(for: instance) && (apiKeys[instance.id] ?? "").isEmpty)
-
                             Spacer()
 
-                            Button {
-                                Task { await runTest(for: instance) }
-                            } label: {
-                                if isTesting[instance.id, default: false] {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Text(String(localized: "Test Connection"))
+                            if !instanceIsVerified(instance) {
+                                Button {
+                                    Task { await runTest(for: instance) }
+                                } label: {
+                                    if isTesting[instance.id, default: false] {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "bolt.fill")
+                                                .font(.caption)
+                                            Text(String(localized: "Test"))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .foregroundStyle(.tint)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(.tint, lineWidth: 1)
+                                        )
+                                    }
                                 }
+                                .buttonStyle(.plain)
+                                .disabled(isTesting[instance.id, default: false]
+                                    || (!instanceStore.hasAPIKey(for: instance)
+                                        && (draftAPIKeys[instance.id] ?? "").isEmpty))
                             }
-                            .disabled(isTesting[instance.id, default: false] || !instanceStore.hasAPIKey(for: instance))
                         }
 
                         if let result = testResults[instance.id] {
-                            switch result {
-                            case .success:
-                                Label(String(localized: "Connection OK"), systemImage: "checkmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            case .failure(let message):
+                            if case .failure(let message) = result {
                                 Label(message, systemImage: "exclamationmark.triangle.fill")
                                     .font(.caption)
                                     .foregroundStyle(.red)
@@ -85,35 +82,7 @@ struct STTInstanceSettingsSection: View {
                     }
                     .padding(.vertical, 4)
                 } label: {
-                    HStack(spacing: 6) {
-                        Text(instance.displayName.isEmpty ? String(localized: "Untitled") : instance.displayName)
-                            .lineLimit(1)
-                            .foregroundStyle(instance.displayName.isEmpty ? .secondary : .primary)
-                        Button {
-                            renameText = instance.displayName
-                            renamingID = instance.id
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .popover(isPresented: renameBinding(for: instance.id)) {
-                            renamePopover(for: instance)
-                        }
-                        Spacer()
-                        if activeInstanceID == instance.id {
-                            Text(String(localized: "Active"))
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.green.opacity(0.12), in: Capsule())
-                        }
-                        Text(instance.provider.displayName)
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                        deleteButton(for: instance)
-                    }
+                    instanceRowLabel(instance)
                 }
             }
         } header: {
@@ -125,6 +94,7 @@ struct STTInstanceSettingsSection: View {
                         Button(provider.defaultInstanceName) {
                             let instance = instanceStore.addInstance(provider: provider)
                             apiKeys[instance.id] = ""
+                            draftAPIKeys[instance.id] = ""
                             expandedInstanceID = instance.id
                             engineRegistry.refreshRemoteSTTEngines()
                         }
@@ -138,6 +108,12 @@ struct STTInstanceSettingsSection: View {
             Text(String(localized: "Remote providers store reusable API connections. Presets reference these by name."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .onChange(of: expandedInstanceID) { _, newID in
+            flushPreviousDrafts(keeping: newID)
+        }
+        .onDisappear {
+            flushAllDrafts()
         }
     }
 
@@ -157,31 +133,16 @@ struct STTInstanceSettingsSection: View {
         )
     }
 
-    private func providerBinding(for id: UUID) -> Binding<STTProviderID> {
-        Binding(
-            get: { instanceStore.instance(id: id)?.provider ?? .groq },
-            set: { provider in
-                guard var instance = instanceStore.instance(id: id) else { return }
-                guard instance.provider != provider else { return }
-                let oldProvider = instance.provider
-                _ = instanceStore.clearAPIKey(for: instance)
-                instance.provider = provider
-                let usedDefaultName = instance.displayName == oldProvider.defaultInstanceName
-                    || instance.displayName == ""
-                if usedDefaultName {
-                    instance.displayName = provider.defaultInstanceName
-                }
-                instanceStore.upsert(instance)
-                apiKeys[id] = ""
-                testResults[id] = nil
-            }
-        )
-    }
-
     private func apiKeyBinding(for id: UUID) -> Binding<String> {
         Binding(
-            get: { apiKeys[id, default: ""] },
-            set: { apiKeys[id] = $0 }
+            get: { draftAPIKeys[id, default: ""] },
+            set: { newValue in
+                let oldValue = draftAPIKeys[id, default: ""]
+                if newValue != oldValue {
+                    draftAPIKeys[id] = newValue
+                    clearVerifiedFingerprint(for: id)
+                }
+            }
         )
     }
 
@@ -195,29 +156,25 @@ struct STTInstanceSettingsSection: View {
 
     // MARK: - Actions
 
-    private func saveAPIKey(for id: UUID) {
-        guard let instance = instanceStore.instance(id: id) else { return }
-        guard instanceStore.saveAPIKey(apiKeys[id, default: ""], for: instance) else { return }
-        apiKeys[id] = ""
-        engineRegistry.refreshRemoteEnginesReadiness()
-    }
-
-    private func clearAPIKey(for instance: STTInstance) {
-        _ = instanceStore.clearAPIKey(for: instance)
-        apiKeys[instance.id] = nil
-        testResults[instance.id] = nil
-        engineRegistry.refreshRemoteEnginesReadiness()
-    }
-
     private func runTest(for instance: STTInstance) async {
+        guard isTesting[instance.id, default: false] == false else { return }
         isTesting[instance.id] = true
         defer { isTesting[instance.id] = false }
 
-        let engine = RemoteSpeechEngine(instance: instance)
+        flushDrafts(for: instance.id)
+
+        guard let freshInstance = instanceStore.instance(id: instance.id) else { return }
+
+        let engine = RemoteSpeechEngine(instance: freshInstance)
         if let error = await engine.runConnectivityCheck() {
-            testResults[instance.id] = .failure(error.localizedDescription)
+            testResults[freshInstance.id] = .failure(error.localizedDescription)
+            clearVerifiedFingerprint(for: freshInstance.id)
         } else {
-            testResults[instance.id] = .success
+            testResults[freshInstance.id] = .success
+            var updated = freshInstance
+            let hint = EncryptedKeyStore.keyHint(service: freshInstance.keychainService)
+            updated.verifiedFingerprint = updated.computeFingerprint(apiKeyHint: hint)
+            instanceStore.upsert(updated)
         }
     }
 
@@ -230,6 +187,52 @@ struct STTInstanceSettingsSection: View {
         instance.displayName = trimmed
         instanceStore.upsert(instance)
         renamingID = nil
+    }
+
+    // MARK: - Instance Row Label
+
+    @ViewBuilder
+    private func instanceRowLabel(_ instance: STTInstance) -> some View {
+        HStack(spacing: 6) {
+            Text(instance.displayName.isEmpty ? String(localized: "Untitled") : instance.displayName)
+                .lineLimit(1)
+                .foregroundStyle(instance.displayName.isEmpty ? .secondary : .primary)
+            Button {
+                renameText = instance.displayName
+                renamingID = instance.id
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .popover(isPresented: renameBinding(for: instance.id)) {
+                renamePopover(for: instance)
+            }
+            Spacer()
+            if activeInstanceID == instance.id {
+                Text(String(localized: "In Preset"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            }
+            if instanceIsVerified(instance) {
+                Text(String(localized: "✓ Verified"))
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.12), in: Capsule())
+            }
+            Text(instance.provider.displayName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.secondary.opacity(0.12), in: Capsule())
+            deleteButton(for: instance)
+        }
     }
 
     @ViewBuilder
@@ -300,8 +303,55 @@ struct STTInstanceSettingsSection: View {
             fallbackID: ConfigPreset.defaultSpeechEngineID
         )
         apiKeys[id] = nil
+        draftAPIKeys[id] = nil
         testResults[id] = nil
         pendingDeleteID = nil
         engineRegistry.refreshRemoteSTTEngines()
+    }
+
+    // MARK: - Verification
+
+    private func instanceIsVerified(_ instance: STTInstance) -> Bool {
+        guard let stored = instance.verifiedFingerprint, !stored.isEmpty else { return false }
+        let hint = EncryptedKeyStore.keyHint(service: instance.keychainService)
+        return stored == instance.computeFingerprint(apiKeyHint: hint)
+    }
+
+    private func clearVerifiedFingerprint(for id: UUID) {
+        guard var instance = instanceStore.instance(id: id),
+              instance.verifiedFingerprint != nil else { return }
+        instance.clearVerified()
+        instanceStore.upsert(instance)
+    }
+
+    // MARK: - Draft Flush
+
+    private func flushDrafts(for id: UUID) {
+        if let key = draftAPIKeys.removeValue(forKey: id) {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                guard let instance = instanceStore.instance(id: id) else { return }
+                _ = instanceStore.clearAPIKey(for: instance)
+                testResults[id] = nil
+            } else {
+                guard let instance = instanceStore.instance(id: id) else { return }
+                _ = instanceStore.saveAPIKey(trimmed, for: instance)
+            }
+            engineRegistry.refreshRemoteEnginesReadiness()
+        }
+    }
+
+    private func flushPreviousDrafts(keeping newID: UUID?) {
+        let allIDs = Set(draftAPIKeys.keys)
+        for id in allIDs where id != newID {
+            flushDrafts(for: id)
+        }
+    }
+
+    private func flushAllDrafts() {
+        let ids = Set(draftAPIKeys.keys)
+        for id in ids {
+            flushDrafts(for: id)
+        }
     }
 }

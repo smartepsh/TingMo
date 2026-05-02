@@ -259,12 +259,17 @@ struct LLMInstanceSettingsSection: View {
                                         }
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
-                                        .background(.blue)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(.tint)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(.tint, lineWidth: 1)
+                                        )
                                     }
                                 }
-                                .disabled(isTesting[instance.id, default: false] || !instanceStore.hasAPIKey(for: instance))
+                                .buttonStyle(.plain)
+                                .disabled(isTesting[instance.id, default: false]
+                                    || (!instanceStore.hasAPIKey(for: instance)
+                                        && (draftAPIKeys[instance.id] ?? "").isEmpty))
                             }
                         }
 
@@ -328,7 +333,7 @@ struct LLMInstanceSettingsSection: View {
             }
             Spacer()
             if presetStore.defaultPreset.llmInstanceID == instance.id {
-                Text(String(localized: "Active"))
+                Text(String(localized: "In Preset"))
                     .font(.caption2)
                     .foregroundStyle(.green)
                     .padding(.horizontal, 6)
@@ -460,8 +465,11 @@ struct LLMInstanceSettingsSection: View {
         Binding(
             get: { draftEndpoints[id, default: instanceStore.instance(id: id)?.endpoint ?? ""] },
             set: { newValue in
+                let oldValue = draftEndpoints[id, default: instanceStore.instance(id: id)?.endpoint ?? ""]
                 draftEndpoints[id] = newValue
-                clearVerifiedFingerprint(for: id)
+                if newValue != oldValue {
+                    clearVerifiedFingerprint(for: id)
+                }
             }
         )
     }
@@ -470,8 +478,11 @@ struct LLMInstanceSettingsSection: View {
         Binding(
             get: { draftModels[id, default: instanceStore.instance(id: id)?.model ?? ""] },
             set: { newValue in
+                let oldValue = draftModels[id, default: instanceStore.instance(id: id)?.model ?? ""]
                 draftModels[id] = newValue
-                clearVerifiedFingerprint(for: id)
+                if newValue != oldValue {
+                    clearVerifiedFingerprint(for: id)
+                }
             }
         )
     }
@@ -543,10 +554,12 @@ struct LLMInstanceSettingsSection: View {
         Binding(
             get: { apiKeys[id, default: ""] },
             set: { newValue in
-                apiKeys[id] = newValue
-                draftAPIKeys[id] = newValue
-                // Key change invalidates fingerprint
-                clearVerifiedFingerprint(for: id)
+                let oldValue = apiKeys[id, default: ""]
+                if newValue != oldValue {
+                    apiKeys[id] = newValue
+                    draftAPIKeys[id] = newValue
+                    clearVerifiedFingerprint(for: id)
+                }
             }
         )
     }

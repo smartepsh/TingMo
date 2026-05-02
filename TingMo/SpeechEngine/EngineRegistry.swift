@@ -24,6 +24,10 @@ final class EngineRegistry {
     /// Download progress for models (engine ID → progress 0.0–1.0).
     var downloadProgress: [String: Double] = [:]
 
+    /// Bumped whenever a model is downloaded or deleted so UI that depends on
+    /// disk-usage totals can re-render.
+    var diskUsageVersion: Int = 0
+
     /// Last download failure per engine (surfaced to UI). Cleared on retry.
     var downloadErrors: [String: String] = [:]
 
@@ -225,6 +229,7 @@ final class EngineRegistry {
                 Task { @MainActor [weak self] in
                     self?.downloadProgress[engineID] = nil
                     self?.downloadTasks[engineID] = nil
+                    self?.diskUsageVersion &+= 1
                 }
             }
             do {
@@ -271,7 +276,9 @@ final class EngineRegistry {
         guard let engine = engines.first(where: { $0.info.id == engineID }) as? WhisperKitEngine else {
             return false
         }
-        return engine.deleteLocalFiles()
+        let result = engine.deleteLocalFiles()
+        if result { diskUsageVersion &+= 1 }
+        return result
     }
 
     private static func describeDownloadError(_ error: Error) -> String {

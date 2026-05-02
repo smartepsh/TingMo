@@ -97,8 +97,9 @@ enum RemoteEngineError: LocalizedError {
                 return String(localized: "Rate limit exceeded. Retry after \(Int(retry))s.")
             }
             return String(localized: "Rate limit exceeded.")
-        case .server(let status, _):
-            return String(localized: "Server returned an error (\(status)).")
+        case .server(let status, let body):
+            let detail = Self.extractErrorMessage(from: body) ?? ""
+            return String(localized: "Server error (\(status))\(detail.isEmpty ? "" : ": \(detail)")")
         case .network(let err):
             return String(localized: "Network error: \(err.localizedDescription)")
         case .timeout:
@@ -108,6 +109,15 @@ enum RemoteEngineError: LocalizedError {
         case .invalidResponse:
             return String(localized: "Unexpected response from the server.")
         }
+    }
+
+    private static func extractErrorMessage(from body: String?) -> String? {
+        guard let body, let data = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? [String: Any],
+              let message = error["message"] as? String, !message.isEmpty
+        else { return body }
+        return message
     }
 }
 

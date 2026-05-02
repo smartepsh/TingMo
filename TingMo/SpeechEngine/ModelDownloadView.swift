@@ -13,6 +13,8 @@ struct ModelDownloadView: View {
 
     @State private var endpointPresetID: String
     @State private var customEndpoint: String
+    @State private var pendingDeleteEngineID: String?
+    @State private var pendingCancelEngineID: String?
 
     init(
         engineRegistry: EngineRegistry,
@@ -138,8 +140,23 @@ struct ModelDownloadView: View {
     private func controls(engineID: String, downloaded: Bool, progress: Double?, hasError: Bool) -> some View {
         HStack(spacing: 8) {
             if progress != nil {
-                Button(String(localized: "Cancel")) {
-                    engineRegistry.cancelDownload(engineID: engineID)
+                let isPending = pendingCancelEngineID == engineID
+                Button {
+                    if isPending {
+                        engineRegistry.cancelDownload(engineID: engineID)
+                        pendingCancelEngineID = nil
+                    } else {
+                        pendingCancelEngineID = engineID
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle")
+                        .foregroundStyle(isPending ? .red : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .onHover { inside in
+                    if !inside && isPending {
+                        pendingCancelEngineID = nil
+                    }
                 }
             } else if hasError {
                 Button(String(localized: "Retry")) {
@@ -147,17 +164,43 @@ struct ModelDownloadView: View {
                     engineRegistry.downloadModel(engineID: engineID, makeActiveWhenDone: false)
                 }
             } else if downloaded {
-                Button(String(localized: "Delete"), role: .destructive) {
-                    _ = engineRegistry.deleteDownloadedModel(engineID: engineID)
-                    presetStore.replaceSpeechEngineSelection(
-                        deletedID: engineID,
-                        fallbackID: WhisperKitEngine.defaultModelEngineID
-                    )
+                let isActive = presetStore.defaultPreset.speechEngineID == engineID
+                let isPending = pendingDeleteEngineID == engineID
+                Button {
+                    if isActive {
+                        _ = engineRegistry.deleteDownloadedModel(engineID: engineID)
+                        presetStore.replaceSpeechEngineSelection(
+                            deletedID: engineID,
+                            fallbackID: WhisperKitEngine.defaultModelEngineID
+                        )
+                    } else if isPending {
+                        _ = engineRegistry.deleteDownloadedModel(engineID: engineID)
+                        presetStore.replaceSpeechEngineSelection(
+                            deletedID: engineID,
+                            fallbackID: WhisperKitEngine.defaultModelEngineID
+                        )
+                        pendingDeleteEngineID = nil
+                    } else {
+                        pendingDeleteEngineID = engineID
+                    }
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(isPending ? .red : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .onHover { inside in
+                    if !inside && isPending {
+                        pendingDeleteEngineID = nil
+                    }
                 }
             } else {
-                Button(String(localized: "Download")) {
+                Button {
                     engineRegistry.downloadModel(engineID: engineID, makeActiveWhenDone: false)
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.borderless)
             }
         }
     }
@@ -165,6 +208,7 @@ struct ModelDownloadView: View {
     // MARK: - Aggregate
 
     private var totalDiskUsageFormatted: String {
+        _ = engineRegistry.diskUsageVersion
         let total = WhisperKitEngine.availableModels.reduce(Int64(0)) {
             $0 + WhisperKitEngine.diskUsage(for: $1)
         }

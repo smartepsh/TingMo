@@ -429,12 +429,13 @@ protocol LLMProvider: Sendable {
     func correct(_ request: LLMCorrectionRequest) async throws -> LLMCorrectionResponse
     func validate(_ config: LLMConfig) throws
     func runConnectivityCheck(_ config: LLMConfig) async -> LLMProviderError?
+    func performConnectivityCheck(config: LLMConfig, apiKey: String) async -> LLMProviderError?
 }
 
 extension LLMProvider {
     func validate(_ config: LLMConfig) throws {
         guard config.enabled else { throw LLMProviderError.disabled }
-        guard config.provider == providerID else { throw LLMProviderError.unsupportedProvider(config.provider) }
+        guard config.provider == providerID || config.provider.wireFormat == providerID.wireFormat else { throw LLMProviderError.unsupportedProvider(config.provider) }
         guard let url = URL(string: config.effectiveEndpoint),
               let scheme = url.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),
@@ -447,7 +448,7 @@ extension LLMProvider {
 
     func runConnectivityCheck(_ config: LLMConfig) async -> LLMProviderError? {
         guard config.enabled else { return .disabled }
-        guard config.provider == providerID else { return .unsupportedProvider(config.provider) }
+        guard config.provider == providerID || config.provider.wireFormat == providerID.wireFormat else { return .unsupportedProvider(config.provider) }
         
         let apiKey = EncryptedKeyStore.get(service: config.effectiveKeychainService) ?? ""
         if apiKey.isEmpty && !config.usesLocalEndpoint {
@@ -508,8 +509,11 @@ enum LLMProviderError: LocalizedError {
             } else {
                 "LLM rate limit exceeded."
             }
-        case .server(let status, _):
-            "LLM server returned an error (\(status))."
+        case .server(let status, let body):
+            {
+                let detail = Self.extractErrorMessage(from: body) ?? ""
+                return "LLM server error (\(status))\(detail.isEmpty ? "" : ": \(detail)")"
+            }()
         case .network(let error):
             "LLM network error: \(error.localizedDescription)"
         case .timeout:
@@ -521,5 +525,14 @@ enum LLMProviderError: LocalizedError {
         case .missingCorrectedText:
             "LLM response did not include corrected text."
         }
+    }
+
+    private static func extractErrorMessage(from body: String?) -> String? {
+        guard let body, let data = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? [String: Any],
+              let message = error["message"] as? String, !message.isEmpty
+        else { return body }
+        return message
     }
 }

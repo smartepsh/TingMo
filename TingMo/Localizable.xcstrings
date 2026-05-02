@@ -30,6 +30,9 @@
     "✓ %@" : {
 
     },
+    "✓ Verified" : {
+
+    },
     "A model named '%@' is already imported." : {
 
     },
@@ -44,9 +47,6 @@
       }
     },
     "Accessibility permission is required to paste. Enable TingMo in System Settings → Privacy & Security → Accessibility." : {
-
-    },
-    "Active" : {
 
     },
     "Add Current App" : {
@@ -97,16 +97,10 @@
     "Cancel" : {
 
     },
-    "Clear" : {
-
-    },
     "Clipboard" : {
 
     },
     "Coming Soon" : {
-
-    },
-    "Connection OK" : {
 
     },
     "Context" : {
@@ -160,9 +154,6 @@
           }
         }
       }
-    },
-    "Download" : {
-
     },
     "Download cancelled." : {
 
@@ -324,6 +315,9 @@
     "Imported Models" : {
 
     },
+    "In Preset" : {
+
+    },
     "Input Text" : {
 
     },
@@ -437,6 +431,9 @@
 
     },
     "Not installed" : {
+
+    },
+    "Not Verified" : {
 
     },
     "Notch" : {
@@ -625,9 +622,6 @@
     "Remote providers store reusable API connections. Presets reference these by name." : {
 
     },
-    "Remove" : {
-
-    },
     "Remove historical device" : {
       "localizations" : {
         "zh-Hans" : {
@@ -691,9 +685,6 @@
         }
       }
     },
-    "Save" : {
-
-    },
     "Screen Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -710,8 +701,15 @@
     "Selected Text" : {
 
     },
-    "Server returned an error (%lld)." : {
-
+    "Server error (%lld)%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Server error (%1$lld)%2$@"
+          }
+        }
+      }
     },
     "Settings" : {
       "localizations" : {
@@ -822,7 +820,7 @@
     "Temperature" : {
 
     },
-    "Test Connection" : {
+    "Test" : {
 
     },
     "The global hotkey will be ignored in these applications." : {
