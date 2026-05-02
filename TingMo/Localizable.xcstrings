@@ -27,6 +27,9 @@
     "%@ Settings" : {
 
     },
+    "%lld chars" : {
+
+    },
     "✓ %@" : {
 
     },
@@ -94,6 +97,16 @@
     "Base URL" : {
 
     },
+    "Budget: %lld/%lld chars" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Budget: %1$lld/%2$lld chars"
+          }
+        }
+      }
+    },
     "Cancel" : {
 
     },
@@ -104,6 +117,9 @@
 
     },
     "Context" : {
+
+    },
+    "Context Diagnostics" : {
 
     },
     "Correction" : {
@@ -400,6 +416,9 @@
         }
       }
     },
+    "No diagnostics available. Enable logging and record audio." : {
+
+    },
     "No internet connection." : {
 
     },
@@ -500,6 +519,9 @@
       }
     },
     "Output Language" : {
+
+    },
+    "P=%lld" : {
 
     },
     "Per-item limit: %lld chars" : {
@@ -614,6 +636,9 @@
       }
     },
     "Recording…" : {
+
+    },
+    "Refresh" : {
 
     },
     "Remote Provider" : {
@@ -870,6 +895,9 @@
 
     },
     "Transcribing…" : {
+
+    },
+    "truncated" : {
 
     },
     "Unexpected response from the server." : {
