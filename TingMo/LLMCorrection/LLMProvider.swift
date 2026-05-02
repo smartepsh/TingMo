@@ -428,6 +428,7 @@ protocol LLMProvider: Sendable {
 
     func correct(_ request: LLMCorrectionRequest) async throws -> LLMCorrectionResponse
     func validate(_ config: LLMConfig) throws
+    func runConnectivityCheck(_ config: LLMConfig) async -> LLMProviderError?
 }
 
 extension LLMProvider {
@@ -442,6 +443,30 @@ extension LLMProvider {
             throw LLMProviderError.invalidEndpoint(config.effectiveEndpoint)
         }
         guard !config.effectiveModel.isEmpty else { throw LLMProviderError.missingModel }
+    }
+
+    func runConnectivityCheck(_ config: LLMConfig) async -> LLMProviderError? {
+        guard config.enabled else { return .disabled }
+        guard config.provider == providerID else { return .unsupportedProvider(config.provider) }
+        
+        let apiKey = EncryptedKeyStore.get(service: config.effectiveKeychainService) ?? ""
+        if apiKey.isEmpty && !config.usesLocalEndpoint {
+            return .missingAPIKey
+        }
+        
+        guard let url = URL(string: config.effectiveEndpoint),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host?.isEmpty == false
+        else {
+            return .invalidEndpoint(config.effectiveEndpoint)
+        }
+        
+        return await performConnectivityCheck(config: config, apiKey: apiKey)
+    }
+    
+    func performConnectivityCheck(config: LLMConfig, apiKey: String) async -> LLMProviderError? {
+        return nil
     }
 }
 
