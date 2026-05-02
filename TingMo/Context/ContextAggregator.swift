@@ -84,6 +84,32 @@ final class ContextSettingsStore {
     ]
 }
 
+struct ContextDiagnosticItem: Identifiable {
+    let id = UUID()
+    let kind: LLMContextItem.Kind
+    let text: String
+    let priority: Int
+    let characterCount: Int
+    let isTruncated: Bool
+    let isFiltered: Bool
+    let filterReason: FilterReason?
+
+    enum FilterReason {
+        case sensitiveContent
+        case disabledByUser
+        case emptyText
+        case budgetExceeded
+    }
+}
+
+struct ContextDiagnostics {
+    let rawItems: [ContextDiagnosticItem]
+    let finalItems: [ContextDiagnosticItem]
+    let timestamp: Date
+    let totalBudget: Int
+    let usedBudget: Int
+}
+
 struct ContextAggregator {
     var collector: BasicContextCollector
     var settings: ContextSettingsStore
