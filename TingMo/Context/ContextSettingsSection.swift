@@ -43,6 +43,16 @@ struct ContextSettingsSection: View {
                 let (context, _) = ContextAggregator(settings: settings).collect()
                 ContextDebugLogger.log(context)
             }
+
+            DisclosureGroup("Context Diagnostics") {
+                ContextDiagnosticsView(
+                    diagnostics: settings.lastDiagnostics,
+                    onRefresh: {
+                        let (_, diagnostics) = ContextAggregator(settings: settings).collect()
+                        settings.lastDiagnostics = diagnostics
+                    }
+                )
+            }
         } header: {
             Text("Context")
         } footer: {
