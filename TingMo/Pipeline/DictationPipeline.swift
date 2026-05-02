@@ -228,9 +228,10 @@ final class DictationPipeline {
         }
 
         do {
-            let (context, _) = ContextAggregator(settings: contextSettings).collect()
+            let (context, diagnostics) = ContextAggregator(settings: contextSettings).collect()
             if contextSettings.debugLoggingEnabled {
                 ContextDebugLogger.log(context)
+                contextSettings.lastDiagnostics = diagnostics
             }
             let corrected = try await correctionService.correct(
                 transcript: transcript,
