@@ -472,6 +472,7 @@ struct LLMInstanceSettingsSection: View {
     }
 
     private func runTest(for instance: LLMInstance) async {
+        guard isTesting[instance.id, default: false] == false else { return }
         isTesting[instance.id] = true
         defer { isTesting[instance.id] = false }
 
