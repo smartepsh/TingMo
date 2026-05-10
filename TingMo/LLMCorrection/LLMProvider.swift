@@ -334,7 +334,6 @@ struct LLMContextItem: Codable, Equatable, Sendable {
         case inputText
         case windowTitle
         case applicationName
-        case clipboard
         case windowContent
         case screenshotOCR
         case knowledgeBase

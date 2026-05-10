@@ -62,18 +62,6 @@ struct BasicContextCollector {
             items.append(LLMContextItem(kind: .windowContent, text: windowContent, priority: 15))
         }
 
-        if let clipboard = NSPasteboard.general.string(forType: .string) {
-            let cleaned = ContextTextCleaner.clean(clipboard)
-            if !cleaned.isEmpty {
-                items.append(LLMContextItem(
-                    kind: .clipboard,
-                    text: cleaned,
-                    priority: 50,
-                    isSensitive: Self.looksSensitive(cleaned)
-                ))
-            }
-        }
-
         return deduplicated(items)
     }
 
@@ -90,8 +78,7 @@ struct BasicContextCollector {
             normalizedItems.append(normalized)
         }
 
-        let afterSelectedInput = collapseSelectedAndInputText(normalizedItems)
-        return collapseClipboardIfRedundant(afterSelectedInput)
+        return collapseSelectedAndInputText(normalizedItems)
     }
 
     /// Drop `inputText` when it is fully covered by `selectedText` (e.g. user selected the
@@ -110,36 +97,6 @@ struct BasicContextCollector {
         return items
     }
 
-    /// Drop `clipboard` when its text is identical to `selectedText` or `inputText`.
-    /// Covers iTerm2-style selection auto-copy and "user pressed ⌘C right before
-    /// dictating" — in both cases the clipboard adds no extra signal.
-    private func collapseClipboardIfRedundant(_ items: [LLMContextItem]) -> [LLMContextItem] {
-        guard let clipboard = items.first(where: { $0.kind == .clipboard })?.text else {
-            return items
-        }
-        let selected = items.first(where: { $0.kind == .selectedText })?.text
-        let input = items.first(where: { $0.kind == .inputText })?.text
-        if clipboard == selected || clipboard == input {
-            return items.filter { $0.kind != .clipboard }
-        }
-        return items
-    }
-
-    static func looksSensitive(_ text: String) -> Bool {
-        let lowercased = text.lowercased()
-        let secretWords = ["password", "passwd", "secret", "api_key", "apikey", "token", "bearer "]
-        if secretWords.contains(where: { lowercased.contains($0) }) {
-            return true
-        }
-
-        let compact = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if compact.count >= 32,
-           compact.range(of: #"^[A-Za-z0-9_\-\.=]+$"#, options: .regularExpression) != nil {
-            return true
-        }
-
-        return false
-    }
 }
 
 private extension AXUIElement {

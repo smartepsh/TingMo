@@ -27,9 +27,6 @@
     "%@ Settings" : {
 
     },
-    "%lld%%" : {
-
-    },
     "✓ %@" : {
 
     },
@@ -97,13 +94,7 @@
     "Base URL" : {
 
     },
-    "Budget" : {
-
-    },
     "Cancel" : {
-
-    },
-    "Clipboard" : {
 
     },
     "Coming Soon" : {
@@ -174,9 +165,6 @@
 
     },
     "Drop or import a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc." : {
-
-    },
-    "Each source gets a share of the total character budget. Unused budget is redistributed. Screenshot OCR requires Screen Recording permission and uses remaining space." : {
 
     },
     "ElevenLabs" : {
@@ -512,9 +500,6 @@
       }
     },
     "Output Language" : {
-
-    },
-    "Per-item limit: %lld chars" : {
 
     },
     "Permissions" : {
@@ -882,9 +867,6 @@
       }
     },
     "Total disk usage" : {
-
-    },
-    "Total limit: %lld chars" : {
 
     },
     "Transcribing…" : {

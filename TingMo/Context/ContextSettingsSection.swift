@@ -87,8 +87,6 @@ private extension LLMContextItem.Kind {
             String(localized: "Window Title")
         case .applicationName:
             String(localized: "Application Name")
-        case .clipboard:
-            String(localized: "Clipboard")
         case .windowContent:
             String(localized: "Window Content")
         case .screenshotOCR:

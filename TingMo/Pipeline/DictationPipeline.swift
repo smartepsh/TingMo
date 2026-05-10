@@ -90,7 +90,6 @@ final class DictationPipeline {
             storedTargetPID = targetPID
             storedTargetAppName = targetAppName
             storedContextSnapshot = basicCollector.collect(targetPID: targetPID, targetAppName: targetAppName)
-                .filter { $0.kind != .clipboard }
 
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording

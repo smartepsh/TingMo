@@ -21,7 +21,6 @@ enum ContextDefaults {
     static let sources: [ContextSourceConfig] = [
         ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, budgetPercent: 40),
         ContextSourceConfig(kind: .windowContent, enabled: true, priority: 15, budgetPercent: 30),
-        ContextSourceConfig(kind: .clipboard, enabled: true, priority: 50, budgetPercent: 15),
         ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, budgetPercent: 5),
         ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 30, budgetPercent: 5),
         ContextSourceConfig(kind: .applicationName, enabled: true, priority: 40, budgetPercent: 5),
@@ -122,17 +121,6 @@ struct ContextAggregator {
         var rawCollected: [LLMContextItem]
         if let snapshot {
             rawCollected = snapshot
-            if let clipboard = NSPasteboard.general.string(forType: .string) {
-                let cleaned = ContextTextCleaner.clean(clipboard)
-                if !cleaned.isEmpty {
-                    rawCollected.append(LLMContextItem(
-                        kind: .clipboard,
-                        text: cleaned,
-                        priority: 50,
-                        isSensitive: BasicContextCollector.looksSensitive(cleaned)
-                    ))
-                }
-            }
         } else {
             rawCollected = collector.collect(targetPID: targetPID, targetAppName: targetAppName)
         }
