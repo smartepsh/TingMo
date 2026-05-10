@@ -35,7 +35,6 @@ enum ContextDefaults {
 final class ContextSettingsStore {
     private static let storageKey = "ContextSettingsStore.sources"
     private static let ocrTriggerThresholdKey = "ContextSettingsStore.ocrTriggerThreshold"
-    private static let debugLoggingEnabledKey = "ContextSettingsStore.debugLoggingEnabled"
 
     var sources: [ContextSourceConfig] {
         didSet { save() }
@@ -43,10 +42,6 @@ final class ContextSettingsStore {
 
     var ocrTriggerThreshold: Int {
         didSet { UserDefaults.standard.set(ocrTriggerThreshold, forKey: Self.ocrTriggerThresholdKey) }
-    }
-
-    var debugLoggingEnabled: Bool {
-        didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Self.debugLoggingEnabledKey) }
     }
 
     var maxTotalCharacters: Int { ContextDefaults.maxTotalCharacters }
@@ -61,8 +56,6 @@ final class ContextSettingsStore {
 
         let savedThreshold = UserDefaults.standard.integer(forKey: Self.ocrTriggerThresholdKey)
         ocrTriggerThreshold = savedThreshold > 0 ? savedThreshold : ContextDefaults.ocrTriggerThreshold
-
-        debugLoggingEnabled = UserDefaults.standard.bool(forKey: Self.debugLoggingEnabledKey)
     }
 
     func config(for kind: LLMContextItem.Kind) -> ContextSourceConfig {

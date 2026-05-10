@@ -277,9 +277,9 @@ final class DictationPipeline {
                 }
                 storedOCRText = nil
             }
-            if contextSettings.debugLoggingEnabled {
-                ContextDebugLogger.log(context, budget: contextSettings.maxTotalCharacters)
-            }
+            #if DEBUG
+            ContextDebugLogger.log(context, budget: contextSettings.maxTotalCharacters)
+            #endif
             let corrected = try await correctionService.correct(
                 transcript: transcript,
                 context: context,

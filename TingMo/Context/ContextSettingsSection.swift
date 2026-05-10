@@ -24,8 +24,6 @@ struct ContextSettingsSection: View {
             ) {
                 Text(String(localized: "OCR trigger: < \(settings.ocrTriggerThreshold) info chars"))
             }
-
-            Toggle("Log context for dogfood", isOn: $settings.debugLoggingEnabled)
         } header: {
             Text("Context")
         }
