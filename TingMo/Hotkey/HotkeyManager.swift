@@ -57,7 +57,7 @@ final class HotkeyManager {
     }
 
     /// Short-press threshold in seconds.
-    let shortPressThreshold: TimeInterval = 0.3
+    let shortPressThreshold: TimeInterval = 1.0
 
     /// Event publisher for hotkey actions.
     let eventPublisher = PassthroughSubject<HotkeyEvent, Never>()
@@ -208,6 +208,7 @@ final class HotkeyManager {
     private func handleHotkeyDown() {
         guard keyDownTime == nil else { return } // ignore repeats
         keyDownTime = Date()
+        NSLog("[TingMo][Hotkey] keyDown isToggleRecording=\(isToggleRecording)")
 
         if !isToggleRecording {
             // First press — start recording immediately.
@@ -221,16 +222,20 @@ final class HotkeyManager {
         guard let downTime = keyDownTime else { return }
         let duration = Date().timeIntervalSince(downTime)
         keyDownTime = nil
+        NSLog("[TingMo][Hotkey] keyUp duration=\(duration) isToggleRecording=\(isToggleRecording) threshold=\(shortPressThreshold)")
 
         if isToggleRecording {
             // Release of the second press — stop toggle recording regardless of duration.
             isToggleRecording = false
+            NSLog("[TingMo][Hotkey] sending stopRecording(toggle)")
             eventPublisher.send(.stopRecording(mode: .toggle))
         } else if duration < shortPressThreshold {
             // First press was short → enter toggle mode (recording already started).
+            NSLog("[TingMo][Hotkey] entering toggle mode")
             isToggleRecording = true
         } else {
             // First press was long → press-to-record, stop on release.
+            NSLog("[TingMo][Hotkey] sending stopRecording(pressToRecord)")
             eventPublisher.send(.stopRecording(mode: .pressToRecord))
         }
     }

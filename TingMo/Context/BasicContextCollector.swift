@@ -4,43 +4,74 @@ import Foundation
 
 /// Captures the small, low-latency context set used by M3.
 struct BasicContextCollector {
-    func collect() -> [LLMContextItem] {
+    var windowContentCollector: WindowContentCollector
+
+    init(windowContentCollector: WindowContentCollector = WindowContentCollector()) {
+        self.windowContentCollector = windowContentCollector
+    }
+
+    func collect(targetPID: pid_t? = nil, targetAppName: String? = nil) -> [LLMContextItem] {
         var items: [LLMContextItem] = []
 
-        let frontmostApp = NSWorkspace.shared.frontmostApplication
-        if let appName = frontmostApp?.localizedName,
-           !appName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            items.append(LLMContextItem(kind: .applicationName, text: appName, priority: 40))
+        let runningApp: NSRunningApplication?
+        if let targetPID {
+            runningApp = NSRunningApplication(processIdentifier: targetPID)
+        } else {
+            runningApp = NSWorkspace.shared.frontmostApplication
+        }
+        let appName = targetAppName ?? runningApp?.localizedName
+        if let appName {
+            let cleaned = ContextTextCleaner.clean(appName)
+            if !cleaned.isEmpty {
+                items.append(LLMContextItem(kind: .applicationName, text: cleaned, priority: 40))
+            }
         }
 
-        if AXIsProcessTrusted(), let pid = frontmostApp?.processIdentifier {
+        if AXIsProcessTrusted(), let pid = targetPID ?? runningApp?.processIdentifier {
+            NSLog("[TingMo][BasicContext] pid=%d appName=%@", pid, appName ?? "nil")
             let appElement = AXUIElementCreateApplication(pid)
             let focusedElement = appElement.axElementAttribute(kAXFocusedUIElementAttribute as CFString)
             let focusedWindow = appElement.axElementAttribute(kAXFocusedWindowAttribute as CFString)
                 ?? focusedElement?.axElementAttribute(kAXWindowAttribute as CFString)
+            NSLog("[TingMo][BasicContext] focusedElement=%@ focusedWindow=%@", focusedElement.debugDescription, focusedWindow.debugDescription)
 
             if let title = focusedWindow?.axStringAttribute(kAXTitleAttribute as CFString) {
-                items.append(LLMContextItem(kind: .windowTitle, text: title, priority: 30))
+                let cleaned = ContextTextCleaner.clean(title)
+                if !cleaned.isEmpty {
+                    items.append(LLMContextItem(kind: .windowTitle, text: cleaned, priority: 30))
+                }
             }
 
             if let focusedElement, !focusedElement.isSensitiveTextField {
                 if let selectedText = focusedElement.axStringAttribute(kAXSelectedTextAttribute as CFString) {
-                    items.append(LLMContextItem(kind: .selectedText, text: selectedText, priority: 10))
+                    let cleaned = ContextTextCleaner.clean(selectedText)
+                    if !cleaned.isEmpty {
+                        items.append(LLMContextItem(kind: .selectedText, text: cleaned, priority: 10))
+                    }
                 }
                 if let inputText = focusedElement.axStringAttribute(kAXValueAttribute as CFString) {
-                    items.append(LLMContextItem(kind: .inputText, text: inputText, priority: 20))
+                    let cleaned = ContextTextCleaner.clean(inputText)
+                    if !cleaned.isEmpty {
+                        items.append(LLMContextItem(kind: .inputText, text: cleaned, priority: 20))
+                    }
                 }
             }
         }
 
-        if let clipboard = NSPasteboard.general.string(forType: .string),
-           !clipboard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            items.append(LLMContextItem(
-                kind: .clipboard,
-                text: clipboard,
-                priority: 50,
-                isSensitive: Self.looksSensitive(clipboard)
-            ))
+        if let windowContent = windowContentCollector.collect(targetPID: targetPID) {
+            items.append(LLMContextItem(kind: .windowContent, text: windowContent, priority: 15))
+        }
+
+        if let clipboard = NSPasteboard.general.string(forType: .string) {
+            let cleaned = ContextTextCleaner.clean(clipboard)
+            if !cleaned.isEmpty {
+                items.append(LLMContextItem(
+                    kind: .clipboard,
+                    text: cleaned,
+                    priority: 50,
+                    isSensitive: Self.looksSensitive(cleaned)
+                ))
+            }
         }
 
         return deduplicated(items)
@@ -59,7 +90,7 @@ struct BasicContextCollector {
         }
     }
 
-    private static func looksSensitive(_ text: String) -> Bool {
+    static func looksSensitive(_ text: String) -> Bool {
         let lowercased = text.lowercased()
         let secretWords = ["password", "passwd", "secret", "api_key", "apikey", "token", "bearer "]
         if secretWords.contains(where: { lowercased.contains($0) }) {

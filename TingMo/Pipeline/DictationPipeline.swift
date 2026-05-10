@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -45,6 +46,13 @@ final class DictationPipeline {
     private let contextSettings: ContextSettingsStore
     private let correctionService = LLMCorrectionService()
     private let capture = AudioCapture()
+    private let ocrCollector = ScreenshotOCRCollector()
+    private let basicCollector = BasicContextCollector()
+    private var storedOCRText: String?
+    private var ocrTask: Task<Void, Never>?
+    private var storedContextSnapshot: [LLMContextItem] = []
+    private var storedTargetPID: pid_t?
+    private var storedTargetAppName: String?
 
     init(
         registry: EngineRegistry,
@@ -76,8 +84,27 @@ final class DictationPipeline {
         lastError = nil
 
         do {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            let targetPID = frontmost?.processIdentifier
+            let targetAppName = frontmost?.localizedName
+            storedTargetPID = targetPID
+            storedTargetAppName = targetAppName
+            storedContextSnapshot = basicCollector.collect(targetPID: targetPID, targetAppName: targetAppName)
+                .filter { $0.kind != .clipboard }
+
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording
+
+            if contextSettings.config(for: .screenshotOCR).enabled {
+                storedOCRText = nil
+                ocrTask = Task { [weak self, targetPID] in
+                    guard let self else { return }
+                    let result = await self.ocrCollector.captureAndRecognize(targetPID: targetPID)
+                    if !Task.isCancelled {
+                        self.storedOCRText = result
+                    }
+                }
+            }
         } catch {
             // Normalize any capture failure to a user-facing error.
             let surfaced = PipelineError.deviceUnavailable
@@ -113,6 +140,12 @@ final class DictationPipeline {
     func cancel() {
         switch state {
         case .recording:
+            ocrTask?.cancel()
+            ocrTask = nil
+            storedOCRText = nil
+            storedContextSnapshot = []
+            storedTargetPID = nil
+            storedTargetAppName = nil
             capture.cancel()
             state = .idle
         case .transcribing, .idle:
@@ -228,10 +261,25 @@ final class DictationPipeline {
         }
 
         do {
-            let (context, diagnostics) = ContextAggregator(settings: contextSettings).collect()
+            var context = ContextAggregator(settings: contextSettings, skipOCR: true).collect(
+                snapshot: storedContextSnapshot,
+                targetPID: storedTargetPID,
+                targetAppName: storedTargetAppName
+            )
+
+            if let ocrText = storedOCRText {
+                let windowContentInfo = context
+                    .filter { $0.kind == .windowContent }
+                    .reduce(0) { $0 + ContextTextCleaner.informationalCharCount($1.text) }
+
+                if windowContentInfo < contextSettings.ocrTriggerThreshold {
+                    let ocrConfig = contextSettings.config(for: .screenshotOCR)
+                    context.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
+                }
+                storedOCRText = nil
+            }
             if contextSettings.debugLoggingEnabled {
-                ContextDebugLogger.log(context)
-                contextSettings.lastDiagnostics = diagnostics
+                ContextDebugLogger.log(context, budget: contextSettings.maxTotalCharacters)
             }
             let corrected = try await correctionService.correct(
                 transcript: transcript,

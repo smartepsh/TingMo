@@ -27,7 +27,7 @@
     "%@ Settings" : {
 
     },
-    "%lld chars" : {
+    "%lld%%" : {
 
     },
     "✓ %@" : {
@@ -97,15 +97,8 @@
     "Base URL" : {
 
     },
-    "Budget: %lld/%lld chars" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Budget: %1$lld/%2$lld chars"
-          }
-        }
-      }
+    "Budget" : {
+
     },
     "Cancel" : {
 
@@ -117,9 +110,6 @@
 
     },
     "Context" : {
-
-    },
-    "Context Diagnostics" : {
 
     },
     "Correction" : {
@@ -184,6 +174,9 @@
 
     },
     "Drop or import a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc." : {
+
+    },
+    "Each source gets a share of the total character budget. Unused budget is redistributed. Screenshot OCR requires Screen Recording permission and uses remaining space." : {
 
     },
     "ElevenLabs" : {
@@ -352,12 +345,6 @@
     "Log context for dogfood" : {
 
     },
-    "Log current context" : {
-
-    },
-    "Lower priority numbers are injected first. Sensitive fields are excluded before prompt construction. Context logging writes non-sensitive context previews to the app log." : {
-
-    },
     "Microphone" : {
       "localizations" : {
         "zh-Hans" : {
@@ -381,6 +368,9 @@
 
     },
     "Models install to ~/Library/Application Support/TingMo/Models. Drop a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc to import." : {
+
+    },
+    "Needs Screen Recording" : {
 
     },
     "Network error: %@" : {
@@ -415,9 +405,6 @@
           }
         }
       }
-    },
-    "No diagnostics available. Enable logging and record audio." : {
-
     },
     "No internet connection." : {
 
@@ -465,6 +452,9 @@
         }
       }
     },
+    "OCR trigger: < %lld info chars" : {
+
+    },
     "Off" : {
 
     },
@@ -498,6 +488,9 @@
         }
       }
     },
+    "Open System Settings" : {
+
+    },
     "Optional" : {
       "localizations" : {
         "zh-Hans" : {
@@ -519,9 +512,6 @@
       }
     },
     "Output Language" : {
-
-    },
-    "P=%lld" : {
 
     },
     "Per-item limit: %lld chars" : {
@@ -587,9 +577,6 @@
         }
       }
     },
-    "Priority %lld" : {
-
-    },
     "Processing..." : {
       "localizations" : {
         "zh-Hans" : {
@@ -636,9 +623,6 @@
       }
     },
     "Recording…" : {
-
-    },
-    "Refresh" : {
 
     },
     "Remote Provider" : {
@@ -719,6 +703,15 @@
           }
         }
       }
+    },
+    "Screen Recording Permission Required" : {
+
+    },
+    "Screenshot OCR" : {
+
+    },
+    "Screenshot OCR requires Screen Recording permission. Please grant permission in System Settings > Privacy & Security > Screen Recording." : {
+
     },
     "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
 
@@ -897,9 +890,6 @@
     "Transcribing…" : {
 
     },
-    "truncated" : {
-
-    },
     "Unexpected response from the server." : {
 
     },
@@ -931,6 +921,9 @@
           }
         }
       }
+    },
+    "Window Content" : {
+
     },
     "Window Title" : {
 
