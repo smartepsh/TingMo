@@ -65,9 +65,6 @@
     "API key is missing. Enter it in Settings." : {
 
     },
-    "Application Name" : {
-
-    },
     "Audio Devices" : {
       "localizations" : {
         "zh-Hans" : {
@@ -116,9 +113,6 @@
 
     },
     "Current endpoint: %@" : {
-
-    },
-    "Custom" : {
 
     },
     "Custom…" : {
@@ -315,16 +309,10 @@
     "In Preset" : {
 
     },
-    "Input Text" : {
-
-    },
     "Installed" : {
 
     },
     "Invalid model: required bundle '%@' is missing." : {
-
-    },
-    "Knowledge Base" : {
 
     },
     "Local Provider" : {
@@ -695,9 +683,6 @@
     "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
 
     },
-    "Selected Text" : {
-
-    },
     "Server error (%lld)%@" : {
       "localizations" : {
         "en" : {
@@ -897,12 +882,6 @@
           }
         }
       }
-    },
-    "Window Content" : {
-
-    },
-    "Window Title" : {
-
     },
     "You're all set!" : {
       "localizations" : {
