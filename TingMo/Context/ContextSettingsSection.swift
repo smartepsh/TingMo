@@ -16,14 +16,6 @@ struct ContextSettingsSection: View {
             ForEach(sortedSources) { source in
                 sourceRow(for: source)
             }
-
-            Stepper(
-                value: $settings.ocrTriggerThreshold,
-                in: 10...500,
-                step: 10
-            ) {
-                Text(String(localized: "OCR trigger: < \(settings.ocrTriggerThreshold) info chars"))
-            }
         } header: {
             Text("Context")
         }

@@ -267,14 +267,8 @@ final class DictationPipeline {
             )
 
             if let ocrText = storedOCRText {
-                let windowContentInfo = context
-                    .filter { $0.kind == .windowContent }
-                    .reduce(0) { $0 + ContextTextCleaner.informationalCharCount($1.text) }
-
-                if windowContentInfo < contextSettings.ocrTriggerThreshold {
-                    let ocrConfig = contextSettings.config(for: .screenshotOCR)
-                    context.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
-                }
+                let ocrConfig = contextSettings.config(for: .screenshotOCR)
+                context.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
                 storedOCRText = nil
             }
             #if DEBUG

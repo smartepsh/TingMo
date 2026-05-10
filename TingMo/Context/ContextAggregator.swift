@@ -19,7 +19,6 @@ struct ContextSourceConfig: Codable, Equatable, Identifiable {
 /// Keep all numeric defaults here so future adjustments don't require UI changes.
 enum ContextDefaults {
     static let maxTotalCharacters = 4_000
-    static let ocrTriggerThreshold = 50
 
     static let sources: [ContextSourceConfig] = [
         ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, maxBudgetPercent: 50),
@@ -34,14 +33,9 @@ enum ContextDefaults {
 @Observable
 final class ContextSettingsStore {
     private static let storageKey = "ContextSettingsStore.sources"
-    private static let ocrTriggerThresholdKey = "ContextSettingsStore.ocrTriggerThreshold"
 
     var sources: [ContextSourceConfig] {
         didSet { save() }
-    }
-
-    var ocrTriggerThreshold: Int {
-        didSet { UserDefaults.standard.set(ocrTriggerThreshold, forKey: Self.ocrTriggerThresholdKey) }
     }
 
     var maxTotalCharacters: Int { ContextDefaults.maxTotalCharacters }
@@ -53,9 +47,6 @@ final class ContextSettingsStore {
         } else {
             sources = Self.defaultSources
         }
-
-        let savedThreshold = UserDefaults.standard.integer(forKey: Self.ocrTriggerThresholdKey)
-        ocrTriggerThreshold = savedThreshold > 0 ? savedThreshold : ContextDefaults.ocrTriggerThreshold
     }
 
     func config(for kind: LLMContextItem.Kind) -> ContextSourceConfig {
@@ -122,14 +113,8 @@ struct ContextAggregator {
 
         let ocrConfig = settings.config(for: .screenshotOCR)
         if ocrConfig.enabled && !skipOCR {
-            let windowContentInfo = rawCollected
-                .filter { $0.kind == .windowContent }
-                .reduce(0) { $0 + ContextTextCleaner.informationalCharCount($1.text) }
-
-            if windowContentInfo < settings.ocrTriggerThreshold {
-                if let ocrText = screenshotOCRCollector.collect() {
-                    rawCollected.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
-                }
+            if let ocrText = screenshotOCRCollector.collect() {
+                rawCollected.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
             }
         }
 
