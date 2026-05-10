@@ -94,7 +94,7 @@ final class DictationPipeline {
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             state = .recording
 
-            if contextSettings.config(for: .screenshotOCR).enabled {
+            if contextSettings.screenshotOCREnabled {
                 storedOCRText = nil
                 ocrTask = Task { [weak self, targetPID] in
                     guard let self else { return }
@@ -267,8 +267,8 @@ final class DictationPipeline {
             )
 
             if let ocrText = storedOCRText {
-                let ocrConfig = contextSettings.config(for: .screenshotOCR)
-                context.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
+                let priority = ContextDefaults.source(for: .screenshotOCR)?.priority ?? 60
+                context.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: priority))
                 storedOCRText = nil
             }
             #if DEBUG

@@ -2,17 +2,14 @@ import AppKit
 import Foundation
 import Observation
 
-struct ContextSourceConfig: Codable, Equatable, Identifiable {
-    var kind: LLMContextItem.Kind
-    var enabled: Bool
-    var priority: Int
+struct ContextSourceConfig {
+    let kind: LLMContextItem.Kind
+    let priority: Int
     /// Cap for this source as a percentage of `maxTotalCharacters`. Higher-priority
     /// sources fill first; whatever they don't use stays in the shared budget for
     /// lower-priority sources. Caps may sum above 100% — the total budget is the
     /// hard ceiling.
-    var maxBudgetPercent: Int
-
-    var id: LLMContextItem.Kind { kind }
+    let maxBudgetPercent: Int
 }
 
 /// Single source of truth for context-collection tuning constants.
@@ -21,68 +18,32 @@ enum ContextDefaults {
     static let maxTotalCharacters = 4_000
 
     static let sources: [ContextSourceConfig] = [
-        ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, maxBudgetPercent: 50),
-        ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, maxBudgetPercent: 50),
-        ContextSourceConfig(kind: .windowContent, enabled: true, priority: 30, maxBudgetPercent: 60),
-        ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 40, maxBudgetPercent: 10),
-        ContextSourceConfig(kind: .applicationName, enabled: true, priority: 50, maxBudgetPercent: 5),
-        ContextSourceConfig(kind: .screenshotOCR, enabled: false, priority: 60, maxBudgetPercent: 60),
+        ContextSourceConfig(kind: .selectedText, priority: 10, maxBudgetPercent: 50),
+        ContextSourceConfig(kind: .inputText, priority: 20, maxBudgetPercent: 50),
+        ContextSourceConfig(kind: .windowContent, priority: 30, maxBudgetPercent: 60),
+        ContextSourceConfig(kind: .windowTitle, priority: 40, maxBudgetPercent: 10),
+        ContextSourceConfig(kind: .applicationName, priority: 50, maxBudgetPercent: 5),
+        ContextSourceConfig(kind: .screenshotOCR, priority: 60, maxBudgetPercent: 60),
     ]
+
+    static func source(for kind: LLMContextItem.Kind) -> ContextSourceConfig? {
+        sources.first { $0.kind == kind }
+    }
 }
 
 @Observable
 final class ContextSettingsStore {
-    private static let storageKey = "ContextSettingsStore.sources"
+    private static let screenshotOCREnabledKey = "ContextSettingsStore.screenshotOCREnabled"
 
-    var sources: [ContextSourceConfig] {
-        didSet { save() }
+    var screenshotOCREnabled: Bool {
+        didSet { UserDefaults.standard.set(screenshotOCREnabled, forKey: Self.screenshotOCREnabledKey) }
     }
 
     var maxTotalCharacters: Int { ContextDefaults.maxTotalCharacters }
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
-           let decoded = try? JSONDecoder().decode([ContextSourceConfig].self, from: data) {
-            sources = Self.mergeDefaults(with: decoded)
-        } else {
-            sources = Self.defaultSources
-        }
+        screenshotOCREnabled = UserDefaults.standard.bool(forKey: Self.screenshotOCREnabledKey)
     }
-
-    func config(for kind: LLMContextItem.Kind) -> ContextSourceConfig {
-        sources.first { $0.kind == kind }
-            ?? Self.defaultSources.first { $0.kind == kind }
-            ?? ContextSourceConfig(kind: kind, enabled: false, priority: 100, maxBudgetPercent: 0)
-    }
-
-    func update(_ source: ContextSourceConfig) {
-        guard let index = sources.firstIndex(where: { $0.kind == source.kind }) else {
-            sources.append(source)
-            return
-        }
-        sources[index] = source
-    }
-
-    private func save() {
-        guard let data = try? JSONEncoder().encode(sources) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
-    }
-
-    /// Keep the user's `enabled` choice from persisted state, but always take
-    /// `priority` / `maxBudgetPercent` from `ContextDefaults` — those are no longer
-    /// user-tunable and may be adjusted between releases.
-    private static func mergeDefaults(with saved: [ContextSourceConfig]) -> [ContextSourceConfig] {
-        defaultSources.map { defaultSource in
-            guard let savedSource = saved.first(where: { $0.kind == defaultSource.kind }) else {
-                return defaultSource
-            }
-            var merged = defaultSource
-            merged.enabled = savedSource.enabled
-            return merged
-        }
-    }
-
-    static var defaultSources: [ContextSourceConfig] { ContextDefaults.sources }
 }
 
 struct ContextAggregator {
@@ -111,18 +72,17 @@ struct ContextAggregator {
             rawCollected = collector.collect(targetPID: targetPID, targetAppName: targetAppName)
         }
 
-        let ocrConfig = settings.config(for: .screenshotOCR)
-        if ocrConfig.enabled && !skipOCR {
+        if settings.screenshotOCREnabled && !skipOCR {
             if let ocrText = screenshotOCRCollector.collect() {
-                rawCollected.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: ocrConfig.priority))
+                let priority = ContextDefaults.source(for: .screenshotOCR)?.priority ?? 60
+                rawCollected.append(LLMContextItem(kind: .screenshotOCR, text: ocrText, priority: priority))
             }
         }
 
         let filtered = rawCollected.compactMap { item -> LLMContextItem? in
             let trimmed = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if item.isSensitive { return nil }
-            let config = settings.config(for: item.kind)
-            if !config.enabled { return nil }
+            if item.kind == .screenshotOCR && !settings.screenshotOCREnabled { return nil }
             if trimmed.isEmpty { return nil }
             var normalized = item
             normalized.text = trimmed
@@ -141,8 +101,8 @@ struct ContextAggregator {
         // Higher-priority sources fill first. Each source can consume at most
         // its `maxBudgetPercent` of the total budget, but never more than what
         // remains after higher-priority sources have taken their share.
-        let orderedSources = settings.sources
-            .filter { $0.enabled }
+        let orderedSources = ContextDefaults.sources
+            .filter { $0.kind != .screenshotOCR || settings.screenshotOCREnabled }
             .sorted { $0.priority < $1.priority }
 
         for source in orderedSources {
