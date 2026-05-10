@@ -32,17 +32,11 @@ enum ContextDefaults {
 @Observable
 final class ContextSettingsStore {
     private static let storageKey = "ContextSettingsStore.sources"
+    private static let ocrTriggerThresholdKey = "ContextSettingsStore.ocrTriggerThreshold"
+    private static let debugLoggingEnabledKey = "ContextSettingsStore.debugLoggingEnabled"
 
     var sources: [ContextSourceConfig] {
         didSet { save() }
-    }
-
-    var maxCharactersPerItem: Int {
-        didSet { UserDefaults.standard.set(maxCharactersPerItem, forKey: Self.maxCharactersPerItemKey) }
-    }
-
-    var maxTotalCharacters: Int {
-        didSet { UserDefaults.standard.set(maxTotalCharacters, forKey: Self.maxTotalCharactersKey) }
     }
 
     var ocrTriggerThreshold: Int {
@@ -53,10 +47,8 @@ final class ContextSettingsStore {
         didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Self.debugLoggingEnabledKey) }
     }
 
-    private static let maxCharactersPerItemKey = "ContextSettingsStore.maxCharactersPerItem"
-    private static let maxTotalCharactersKey = "ContextSettingsStore.maxTotalCharacters"
-    private static let ocrTriggerThresholdKey = "ContextSettingsStore.ocrTriggerThreshold"
-    private static let debugLoggingEnabledKey = "ContextSettingsStore.debugLoggingEnabled"
+    var maxCharactersPerItem: Int { ContextDefaults.maxCharactersPerItem }
+    var maxTotalCharacters: Int { ContextDefaults.maxTotalCharacters }
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
@@ -65,12 +57,6 @@ final class ContextSettingsStore {
         } else {
             sources = Self.defaultSources
         }
-
-        let savedPerItem = UserDefaults.standard.integer(forKey: Self.maxCharactersPerItemKey)
-        maxCharactersPerItem = savedPerItem > 0 ? savedPerItem : ContextDefaults.maxCharactersPerItem
-
-        let savedTotal = UserDefaults.standard.integer(forKey: Self.maxTotalCharactersKey)
-        maxTotalCharacters = savedTotal > 0 ? savedTotal : ContextDefaults.maxTotalCharacters
 
         let savedThreshold = UserDefaults.standard.integer(forKey: Self.ocrTriggerThresholdKey)
         ocrTriggerThreshold = savedThreshold > 0 ? savedThreshold : ContextDefaults.ocrTriggerThreshold
@@ -97,9 +83,17 @@ final class ContextSettingsStore {
         UserDefaults.standard.set(data, forKey: Self.storageKey)
     }
 
+    /// Keep the user's `enabled` choice from persisted state, but always take
+    /// `priority` / `budgetPercent` from `ContextDefaults` — those are no longer
+    /// user-tunable and may be adjusted between releases.
     private static func mergeDefaults(with saved: [ContextSourceConfig]) -> [ContextSourceConfig] {
         defaultSources.map { defaultSource in
-            saved.first { $0.kind == defaultSource.kind } ?? defaultSource
+            guard let savedSource = saved.first(where: { $0.kind == defaultSource.kind }) else {
+                return defaultSource
+            }
+            var merged = defaultSource
+            merged.enabled = savedSource.enabled
+            return merged
         }
     }
 
