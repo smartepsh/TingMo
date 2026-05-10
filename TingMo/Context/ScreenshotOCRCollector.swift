@@ -5,12 +5,6 @@ import ScreenCaptureKit
 import Vision
 
 struct ScreenshotOCRCollector {
-    var maxCharacters: Int
-
-    init(maxCharacters: Int = 1_200) {
-        self.maxCharacters = maxCharacters
-    }
-
     func collect() -> String? {
         guard let image = captureFrontWindow() else { return nil }
         let text = recognizeText(in: image)
@@ -105,7 +99,7 @@ struct ScreenshotOCRCollector {
 
         if looksSensitive(trimmed) { return nil }
 
-        return String(trimmed.prefix(maxCharacters))
+        return trimmed
     }
 
     private func looksSensitive(_ text: String) -> Bool {
