@@ -11,6 +11,24 @@ struct ContextSourceConfig: Codable, Equatable, Identifiable {
     var id: LLMContextItem.Kind { kind }
 }
 
+/// Single source of truth for context-collection tuning constants.
+/// Keep all numeric defaults here so future adjustments don't require UI changes.
+enum ContextDefaults {
+    static let maxCharactersPerItem = 1_200
+    static let maxTotalCharacters = 4_000
+    static let ocrTriggerThreshold = 50
+
+    static let sources: [ContextSourceConfig] = [
+        ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, budgetPercent: 40),
+        ContextSourceConfig(kind: .windowContent, enabled: true, priority: 15, budgetPercent: 30),
+        ContextSourceConfig(kind: .clipboard, enabled: true, priority: 50, budgetPercent: 15),
+        ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, budgetPercent: 5),
+        ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 30, budgetPercent: 5),
+        ContextSourceConfig(kind: .applicationName, enabled: true, priority: 40, budgetPercent: 5),
+        ContextSourceConfig(kind: .screenshotOCR, enabled: false, priority: 55, budgetPercent: 0),
+    ]
+}
+
 @Observable
 final class ContextSettingsStore {
     private static let storageKey = "ContextSettingsStore.sources"
@@ -49,13 +67,13 @@ final class ContextSettingsStore {
         }
 
         let savedPerItem = UserDefaults.standard.integer(forKey: Self.maxCharactersPerItemKey)
-        maxCharactersPerItem = savedPerItem > 0 ? savedPerItem : 1_200
+        maxCharactersPerItem = savedPerItem > 0 ? savedPerItem : ContextDefaults.maxCharactersPerItem
 
         let savedTotal = UserDefaults.standard.integer(forKey: Self.maxTotalCharactersKey)
-        maxTotalCharacters = savedTotal > 0 ? savedTotal : 4_000
+        maxTotalCharacters = savedTotal > 0 ? savedTotal : ContextDefaults.maxTotalCharacters
 
         let savedThreshold = UserDefaults.standard.integer(forKey: Self.ocrTriggerThresholdKey)
-        ocrTriggerThreshold = savedThreshold > 0 ? savedThreshold : 50
+        ocrTriggerThreshold = savedThreshold > 0 ? savedThreshold : ContextDefaults.ocrTriggerThreshold
 
         debugLoggingEnabled = UserDefaults.standard.bool(forKey: Self.debugLoggingEnabledKey)
     }
@@ -85,15 +103,7 @@ final class ContextSettingsStore {
         }
     }
 
-    static let defaultSources: [ContextSourceConfig] = [
-        ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, budgetPercent: 40),
-        ContextSourceConfig(kind: .windowContent, enabled: true, priority: 15, budgetPercent: 30),
-        ContextSourceConfig(kind: .clipboard, enabled: true, priority: 50, budgetPercent: 15),
-        ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, budgetPercent: 5),
-        ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 30, budgetPercent: 5),
-        ContextSourceConfig(kind: .applicationName, enabled: true, priority: 40, budgetPercent: 5),
-        ContextSourceConfig(kind: .screenshotOCR, enabled: false, priority: 55, budgetPercent: 0),
-    ]
+    static var defaultSources: [ContextSourceConfig] { ContextDefaults.sources }
 }
 
 struct ContextAggregator {

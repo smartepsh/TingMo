@@ -79,15 +79,50 @@ struct BasicContextCollector {
 
     private func deduplicated(_ items: [LLMContextItem]) -> [LLMContextItem] {
         var seen = Set<String>()
-        return items.compactMap { item in
+        var normalizedItems: [LLMContextItem] = []
+        for item in items {
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return nil }
+            guard !text.isEmpty else { continue }
             let key = "\(item.kind.rawValue):\(text)"
-            guard seen.insert(key).inserted else { return nil }
+            guard seen.insert(key).inserted else { continue }
             var normalized = item
             normalized.text = text
-            return normalized
+            normalizedItems.append(normalized)
         }
+
+        let afterSelectedInput = collapseSelectedAndInputText(normalizedItems)
+        return collapseClipboardIfRedundant(afterSelectedInput)
+    }
+
+    /// Drop `inputText` when it is fully covered by `selectedText` (e.g. user selected the
+    /// entire field, or the focused element exposes the same value via both attributes).
+    /// When `inputText` strictly contains `selectedText`, keep both — the selection still
+    /// carries distinct "what the user is focused on" signal.
+    private func collapseSelectedAndInputText(_ items: [LLMContextItem]) -> [LLMContextItem] {
+        guard let selected = items.first(where: { $0.kind == .selectedText })?.text,
+              let input = items.first(where: { $0.kind == .inputText })?.text else {
+            return items
+        }
+
+        if selected == input || selected.contains(input) {
+            return items.filter { $0.kind != .inputText }
+        }
+        return items
+    }
+
+    /// Drop `clipboard` when its text is identical to `selectedText` or `inputText`.
+    /// Covers iTerm2-style selection auto-copy and "user pressed ⌘C right before
+    /// dictating" — in both cases the clipboard adds no extra signal.
+    private func collapseClipboardIfRedundant(_ items: [LLMContextItem]) -> [LLMContextItem] {
+        guard let clipboard = items.first(where: { $0.kind == .clipboard })?.text else {
+            return items
+        }
+        let selected = items.first(where: { $0.kind == .selectedText })?.text
+        let input = items.first(where: { $0.kind == .inputText })?.text
+        if clipboard == selected || clipboard == input {
+            return items.filter { $0.kind != .clipboard }
+        }
+        return items
     }
 
     static func looksSensitive(_ text: String) -> Bool {
