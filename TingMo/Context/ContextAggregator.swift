@@ -6,7 +6,11 @@ struct ContextSourceConfig: Codable, Equatable, Identifiable {
     var kind: LLMContextItem.Kind
     var enabled: Bool
     var priority: Int
-    var budgetPercent: Int
+    /// Cap for this source as a percentage of `maxTotalCharacters`. Higher-priority
+    /// sources fill first; whatever they don't use stays in the shared budget for
+    /// lower-priority sources. Caps may sum above 100% — the total budget is the
+    /// hard ceiling.
+    var maxBudgetPercent: Int
 
     var id: LLMContextItem.Kind { kind }
 }
@@ -14,17 +18,16 @@ struct ContextSourceConfig: Codable, Equatable, Identifiable {
 /// Single source of truth for context-collection tuning constants.
 /// Keep all numeric defaults here so future adjustments don't require UI changes.
 enum ContextDefaults {
-    static let maxCharactersPerItem = 1_200
     static let maxTotalCharacters = 4_000
     static let ocrTriggerThreshold = 50
 
     static let sources: [ContextSourceConfig] = [
-        ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, budgetPercent: 40),
-        ContextSourceConfig(kind: .windowContent, enabled: true, priority: 15, budgetPercent: 30),
-        ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, budgetPercent: 5),
-        ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 30, budgetPercent: 5),
-        ContextSourceConfig(kind: .applicationName, enabled: true, priority: 40, budgetPercent: 5),
-        ContextSourceConfig(kind: .screenshotOCR, enabled: false, priority: 55, budgetPercent: 0),
+        ContextSourceConfig(kind: .selectedText, enabled: true, priority: 10, maxBudgetPercent: 50),
+        ContextSourceConfig(kind: .inputText, enabled: true, priority: 20, maxBudgetPercent: 50),
+        ContextSourceConfig(kind: .windowContent, enabled: true, priority: 30, maxBudgetPercent: 60),
+        ContextSourceConfig(kind: .windowTitle, enabled: true, priority: 40, maxBudgetPercent: 10),
+        ContextSourceConfig(kind: .applicationName, enabled: true, priority: 50, maxBudgetPercent: 5),
+        ContextSourceConfig(kind: .screenshotOCR, enabled: false, priority: 60, maxBudgetPercent: 60),
     ]
 }
 
@@ -46,7 +49,6 @@ final class ContextSettingsStore {
         didSet { UserDefaults.standard.set(debugLoggingEnabled, forKey: Self.debugLoggingEnabledKey) }
     }
 
-    var maxCharactersPerItem: Int { ContextDefaults.maxCharactersPerItem }
     var maxTotalCharacters: Int { ContextDefaults.maxTotalCharacters }
 
     init() {
@@ -66,7 +68,7 @@ final class ContextSettingsStore {
     func config(for kind: LLMContextItem.Kind) -> ContextSourceConfig {
         sources.first { $0.kind == kind }
             ?? Self.defaultSources.first { $0.kind == kind }
-            ?? ContextSourceConfig(kind: kind, enabled: false, priority: 100, budgetPercent: 0)
+            ?? ContextSourceConfig(kind: kind, enabled: false, priority: 100, maxBudgetPercent: 0)
     }
 
     func update(_ source: ContextSourceConfig) {
@@ -83,7 +85,7 @@ final class ContextSettingsStore {
     }
 
     /// Keep the user's `enabled` choice from persisted state, but always take
-    /// `priority` / `budgetPercent` from `ContextDefaults` — those are no longer
+    /// `priority` / `maxBudgetPercent` from `ContextDefaults` — those are no longer
     /// user-tunable and may be adjusted between releases.
     private static func mergeDefaults(with saved: [ContextSourceConfig]) -> [ContextSourceConfig] {
         defaultSources.map { defaultSource in
@@ -158,24 +160,26 @@ struct ContextAggregator {
         var remainingBudget = totalBudget
         var result: [LLMContextItem] = []
 
-        let nonOCRSources = settings.sources
-            .filter { $0.enabled && $0.kind != .screenshotOCR }
+        // Higher-priority sources fill first. Each source can consume at most
+        // its `maxBudgetPercent` of the total budget, but never more than what
+        // remains after higher-priority sources have taken their share.
+        let orderedSources = settings.sources
+            .filter { $0.enabled }
             .sorted { $0.priority < $1.priority }
 
-        for source in nonOCRSources {
+        for source in orderedSources {
             guard remainingBudget > 0 else { break }
             guard let items = itemsByKind[source.kind], !items.isEmpty else { continue }
 
-            let allocated = max(1, totalBudget * source.budgetPercent / 100)
-            let sourceBudget = min(allocated, remainingBudget)
+            let sourceCap = max(0, totalBudget * source.maxBudgetPercent / 100)
+            let sourceBudget = min(sourceCap, remainingBudget)
+            guard sourceBudget > 0 else { continue }
+
             var sourceUsed = 0
-
             for item in items {
-                guard sourceUsed < sourceBudget else { break }
-                let perItemBudget = min(settings.maxCharactersPerItem, sourceBudget - sourceUsed)
-                guard perItemBudget > 0 else { break }
-
-                let truncatedText = String(item.text.prefix(perItemBudget))
+                let available = sourceBudget - sourceUsed
+                guard available > 0 else { break }
+                let truncatedText = String(item.text.prefix(available))
                 var normalized = item
                 normalized.priority = source.priority
                 normalized.text = truncatedText
@@ -184,23 +188,6 @@ struct ContextAggregator {
             }
 
             remainingBudget -= sourceUsed
-        }
-
-        if ocrConfig.enabled, let ocrItems = itemsByKind[.screenshotOCR] {
-            var ocrUsed = 0
-            for item in ocrItems {
-                guard remainingBudget > 0 else { break }
-                let perItemBudget = min(settings.maxCharactersPerItem, remainingBudget)
-                guard perItemBudget > 0 else { break }
-
-                let truncatedText = String(item.text.prefix(perItemBudget))
-                var normalized = item
-                normalized.priority = ocrConfig.priority
-                normalized.text = truncatedText
-                result.append(normalized)
-                ocrUsed += truncatedText.count
-                remainingBudget -= truncatedText.count
-            }
         }
 
         return result
