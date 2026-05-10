@@ -57,9 +57,6 @@ struct SettingsView: View {
                 engineRegistry: engineRegistry
             )
 
-        case .context:
-            ContextSettingsSection(settings: contextSettings)
-
         case .speech:
             STTInstanceSettingsSection(
                 instanceStore: sttInstanceStore,
@@ -79,6 +76,8 @@ struct SettingsView: View {
                 instanceStore: llmInstanceStore,
                 presetStore: presetStore
             )
+
+            ContextSettingsSection(settings: contextSettings)
 
         case .system:
             Section {
@@ -149,7 +148,6 @@ struct SettingsView: View {
 
 private enum SettingsPage: CaseIterable, Hashable, Identifiable {
     case presets
-    case context
     case speech
     case correction
     case system
@@ -160,8 +158,6 @@ private enum SettingsPage: CaseIterable, Hashable, Identifiable {
         switch self {
         case .presets:
             String(localized: "Presets")
-        case .context:
-            String(localized: "Context")
         case .speech:
             String(localized: "Speech Recognition")
         case .correction:
@@ -175,8 +171,6 @@ private enum SettingsPage: CaseIterable, Hashable, Identifiable {
         switch self {
         case .presets:
             "slider.horizontal.3"
-        case .context:
-            "text.bubble"
         case .speech:
             "waveform"
         case .correction:
