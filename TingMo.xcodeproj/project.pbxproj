@@ -10,8 +10,19 @@
 		76A0D9802F9A2839000B4EBB /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 76A0D97F2F9A2839000B4EBB /* WhisperKit */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		762F74B42FB20FB800813EBE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 762D97B42F683D3500FF0133 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 762D97BB2F683D3500FF0133;
+			remoteInfo = TingMo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		762D97BC2F683D3500FF0133 /* TingMo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TingMo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		762F74B02FB20FB800813EBE /* TingMoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TingMoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		76B3FC0F2F6BB0E300791B19 /* TingMo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TingMo.xcodeproj; sourceTree = "<group>"; };
 		76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -20,6 +31,11 @@
 		762D97BE2F683D3500FF0133 /* TingMo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TingMo;
+			sourceTree = "<group>";
+		};
+		762F74B12FB20FB800813EBE /* TingMoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TingMoTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -33,6 +49,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		762F74AD2FB20FB800813EBE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -41,6 +64,7 @@
 			children = (
 				76D2F50F2FA00D8200C0FFEE /* Config */,
 				762D97BE2F683D3500FF0133 /* TingMo */,
+				762F74B12FB20FB800813EBE /* TingMoTests */,
 				76A0D97E2F9A2839000B4EBB /* Frameworks */,
 				762D97BD2F683D3500FF0133 /* Products */,
 			);
@@ -50,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				762D97BC2F683D3500FF0133 /* TingMo.app */,
+				762F74B02FB20FB800813EBE /* TingMoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,6 +127,29 @@
 			productReference = 762D97BC2F683D3500FF0133 /* TingMo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		762F74AF2FB20FB800813EBE /* TingMoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 762F74B62FB20FB800813EBE /* Build configuration list for PBXNativeTarget "TingMoTests" */;
+			buildPhases = (
+				762F74AC2FB20FB800813EBE /* Sources */,
+				762F74AD2FB20FB800813EBE /* Frameworks */,
+				762F74AE2FB20FB800813EBE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				762F74B52FB20FB800813EBE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				762F74B12FB20FB800813EBE /* TingMoTests */,
+			);
+			name = TingMoTests;
+			packageProductDependencies = (
+			);
+			productName = TingMoTests;
+			productReference = 762F74B02FB20FB800813EBE /* TingMoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -109,11 +157,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					762D97BB2F683D3500FF0133 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					762F74AF2FB20FB800813EBE = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = 762D97BB2F683D3500FF0133;
 					};
 				};
 			};
@@ -142,12 +194,20 @@
 			projectRoot = "";
 			targets = (
 				762D97BB2F683D3500FF0133 /* TingMo */,
+				762F74AF2FB20FB800813EBE /* TingMoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		762D97BA2F683D3500FF0133 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		762F74AE2FB20FB800813EBE /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -164,7 +224,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		762F74AC2FB20FB800813EBE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		762F74B52FB20FB800813EBE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 762D97BB2F683D3500FF0133 /* TingMo */;
+			targetProxy = 762F74B42FB20FB800813EBE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		762D97C52F683D3600FF0133 /* Debug */ = {
@@ -367,6 +442,46 @@
 			};
 			name = Release;
 		};
+		762F74B72FB20FB800813EBE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kenton.TingMoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TingMo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TingMo";
+			};
+			name = Debug;
+		};
+		762F74B82FB20FB800813EBE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kenton.TingMoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TingMo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TingMo";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -384,6 +499,15 @@
 			buildConfigurations = (
 				762D97C82F683D3600FF0133 /* Debug */,
 				762D97C92F683D3600FF0133 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		762F74B62FB20FB800813EBE /* Build configuration list for PBXNativeTarget "TingMoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				762F74B72FB20FB800813EBE /* Debug */,
+				762F74B82FB20FB800813EBE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

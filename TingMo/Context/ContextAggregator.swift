@@ -81,11 +81,20 @@ struct ContextAggregator {
 
         let filtered = rawCollected.compactMap { item -> LLMContextItem? in
             let trimmed = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if item.isSensitive { return nil }
             if item.kind == .screenshotOCR && !settings.screenshotOCREnabled { return nil }
             if trimmed.isEmpty { return nil }
+
             var normalized = item
-            normalized.text = trimmed
+            switch SensitiveContentFilter.evaluate(trimmed) {
+            case .keep:
+                normalized.text = trimmed
+            case .drop(let reason):
+                NSLog("[TingMo][Sensitive] dropped %@: %@", item.kind.rawValue, reason)
+                return nil
+            case .redact(let masked, let reason):
+                NSLog("[TingMo][Sensitive] redacted %@: %@", item.kind.rawValue, reason)
+                normalized.text = masked
+            }
             return normalized
         }
 

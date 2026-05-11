@@ -343,13 +343,11 @@ struct LLMContextItem: Codable, Equatable, Sendable {
     var kind: Kind
     var text: String
     var priority: Int
-    var isSensitive: Bool
 
-    init(kind: Kind, text: String, priority: Int, isSensitive: Bool = false) {
+    init(kind: Kind, text: String, priority: Int) {
         self.kind = kind
         self.text = text
         self.priority = priority
-        self.isSensitive = isSensitive
     }
 }
 
@@ -371,7 +369,7 @@ struct LLMCorrectionRequest: Equatable, Sendable {
     }
 
     var nonSensitiveContext: [LLMContextItem] {
-        context.filter { !$0.isSensitive && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        context.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted { lhs, rhs in
                 lhs.priority == rhs.priority ? lhs.kind.rawValue < rhs.kind.rawValue : lhs.priority < rhs.priority
             }
