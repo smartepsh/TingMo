@@ -8,6 +8,10 @@ docs/superpowers
 xcuserdata/
 *.xcuserstate
 
+# Xcode build output
+build/
+DerivedData/
+
 # Local code signing overrides. This keeps macOS TCC permissions stable on a
 # developer machine without committing local certificates or generated settings.
 Config/LocalSigning.xcconfig
