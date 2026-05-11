@@ -156,6 +156,7 @@ struct TingMoApp: App {
 
             Button(String(localized: "Settings...")) {
                 openWindow(id: "settings-window")
+                NSApp.activate(ignoringOtherApps: true)
             }
             .keyboardShortcut(",", modifiers: .command)
             .disabled(pipeline.state == .recording)
