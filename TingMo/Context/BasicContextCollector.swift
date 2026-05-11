@@ -28,7 +28,8 @@ struct BasicContextCollector {
         }
 
         if AXIsProcessTrusted(), let pid = targetPID ?? runningApp?.processIdentifier {
-            NSLog("[TingMo][BasicContext] pid=%d appName=%@", pid, appName ?? "nil")
+            let bundleId = runningApp?.bundleIdentifier
+            NSLog("[TingMo][BasicContext] pid=%d appName=%@ bundleId=%@", pid, appName ?? "nil", bundleId ?? "nil")
             let appElement = AXUIElementCreateApplication(pid)
             let focusedElement = appElement.axElementAttribute(kAXFocusedUIElementAttribute as CFString)
             let focusedWindow = appElement.axElementAttribute(kAXFocusedWindowAttribute as CFString)
@@ -42,18 +43,36 @@ struct BasicContextCollector {
                 }
             }
 
-            if let focusedElement, !focusedElement.isSensitiveTextField {
-                if let selectedText = focusedElement.axStringAttribute(kAXSelectedTextAttribute as CFString) {
-                    let cleaned = ContextTextCleaner.clean(selectedText)
-                    if !cleaned.isEmpty {
-                        items.append(LLMContextItem(kind: .selectedText, text: cleaned, priority: 10))
+            if let focusedElement {
+                let role = focusedElement.axStringAttribute(kAXRoleAttribute as CFString) ?? ""
+                let subrole = focusedElement.axStringAttribute(kAXSubroleAttribute as CFString) ?? ""
+                let classification = focusedElement.textRoleClassification(bundleIdentifier: bundleId)
+                let rawValueLength = focusedElement.axStringAttribute(kAXValueAttribute as CFString)?.count ?? 0
+                let sensitive = focusedElement.isSensitiveTextField
+
+                NSLog("[TingMo][BasicContext] focused role=%@ subrole=%@ classification=%@ valueLen=%d sensitive=%@",
+                      role, subrole, String(describing: classification), rawValueLength, sensitive ? "true" : "false")
+
+                if !sensitive {
+                    if let selectedText = focusedElement.axStringAttribute(kAXSelectedTextAttribute as CFString) {
+                        let cleaned = ContextTextCleaner.clean(selectedText)
+                        if !cleaned.isEmpty {
+                            items.append(LLMContextItem(kind: .selectedText, text: cleaned, priority: 10))
+                        }
                     }
-                }
-                if let inputText = focusedElement.axStringAttribute(kAXValueAttribute as CFString) {
-                    let cleaned = ContextTextCleaner.clean(inputText)
-                    if !cleaned.isEmpty {
-                        items.append(LLMContextItem(kind: .inputText, text: cleaned, priority: 20))
+                    if classification == .editable,
+                       let inputText = focusedElement.axStringAttribute(kAXValueAttribute as CFString) {
+                        let cleaned = ContextTextCleaner.clean(inputText)
+                        if !cleaned.isEmpty {
+                            items.append(LLMContextItem(kind: .inputText, text: cleaned, priority: 20))
+                        } else {
+                            NSLog("[TingMo][BasicContext] inputText skipped: cleaned empty (rawLen=%d)", rawValueLength)
+                        }
+                    } else if classification != .editable {
+                        NSLog("[TingMo][BasicContext] inputText skipped: focused element is %@", String(describing: classification))
                     }
+                } else {
+                    NSLog("[TingMo][BasicContext] focused element is sensitive — selectedText/inputText skipped")
                 }
             }
         }
@@ -92,11 +111,29 @@ struct BasicContextCollector {
         }
 
         if selected == input || selected.contains(input) {
+            NSLog("[TingMo][BasicContext] collapsed inputText into selectedText (selected covers input)")
             return items.filter { $0.kind != .inputText }
         }
         return items
     }
 
+}
+
+enum FocusedTextRole: String {
+    case editable
+    case readOnly
+    case nonText
+}
+
+enum FocusedTextRoleHeuristics {
+    static let terminalBundleIDs: Set<String> = [
+        "com.googlecode.iterm2",
+        "com.apple.Terminal",
+        "co.zeit.hyper",
+        "net.kovidgoyal.kitty",
+        "io.alacritty",
+        "com.github.wez.wezterm",
+    ]
 }
 
 private extension AXUIElement {
@@ -111,6 +148,45 @@ private extension AXUIElement {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, attribute, &value) == .success else { return nil }
         return value as? String
+    }
+
+    /// Classify the focused element so callers can decide whether `kAXValueAttribute`
+    /// should be read as user-editable input. Reading the value of a read-only static
+    /// text or non-text container would either duplicate windowContent or be useless.
+    func textRoleClassification(bundleIdentifier: String? = nil) -> FocusedTextRole {
+        let role = axStringAttribute(kAXRoleAttribute as CFString) ?? ""
+        let subrole = axStringAttribute(kAXSubroleAttribute as CFString) ?? ""
+
+        // Terminal-class apps expose their scrollback as AXTextArea with no subrole,
+        // so the value attribute looks editable but is actually a long read-only buffer
+        // that overlaps windowContent. Force them to readOnly.
+        if let bundleIdentifier, FocusedTextRoleHeuristics.terminalBundleIDs.contains(bundleIdentifier) {
+            return .readOnly
+        }
+
+        let editableRoles: Set<String> = [
+            "AXTextField",
+            "AXTextArea",
+            "AXComboBox",
+            "AXSearchField",
+        ]
+        if editableRoles.contains(role) { return .editable }
+        // Web contenteditable typically surfaces with subrole AXContentEditable.
+        if subrole == "AXContentEditable" { return .editable }
+
+        let readOnlyRoles: Set<String> = [
+            "AXStaticText",
+            "AXHeading",
+            "AXLink",
+            "AXWebArea",
+            "AXGroup",
+            "AXScrollArea",
+            "AXOutline",
+            "AXList",
+        ]
+        if readOnlyRoles.contains(role) { return .readOnly }
+
+        return .nonText
     }
 
     var isSensitiveTextField: Bool {

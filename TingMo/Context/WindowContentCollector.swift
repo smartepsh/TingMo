@@ -3,11 +3,10 @@ import ApplicationServices
 import Foundation
 
 struct WindowContentCollector {
-    var maxCharacters: Int
-
-    init(maxCharacters: Int = 1_200) {
-        self.maxCharacters = maxCharacters
-    }
+    /// Hard cap for the AX-tree traversal accumulator. This is a safety brake against
+    /// pathological windows (e.g. a terminal with 10MB of scrollback) — not an output
+    /// budget. Output budgeting is the aggregator's job (`ContextDefaults`).
+    private static let traversalCharBudget = 50_000
 
     func collect(targetPID: pid_t? = nil) -> String? {
         let trusted = AXIsProcessTrusted()
@@ -42,13 +41,12 @@ struct WindowContentCollector {
 
         var visited = ObjectIdentifierSet()
         var texts: [String] = []
-        let collectionCap = min(maxCharacters * 20, 50_000)
 
         if let focusedWindow {
-            traverse(element: focusedWindow, visited: &visited, texts: &texts, cap: collectionCap)
+            traverse(element: focusedWindow, visited: &visited, texts: &texts, cap: Self.traversalCharBudget)
         } else if let windows = appElement.axWindowList(), let first = windows.first {
             NSLog("[TingMo][WindowContent] Falling back to first of %d windows", windows.count)
-            traverse(element: first, visited: &visited, texts: &texts, cap: collectionCap)
+            traverse(element: first, visited: &visited, texts: &texts, cap: Self.traversalCharBudget)
         } else {
             NSLog("[TingMo][WindowContent] No focused window and no windows in window list for pid=%d", pid)
             return nil
@@ -56,15 +54,9 @@ struct WindowContentCollector {
 
         let joined = texts.joined(separator: "\n")
         let cleaned = ContextTextCleaner.clean(joined)
-        let result: String
-        if cleaned.count > maxCharacters {
-            result = String(cleaned.suffix(maxCharacters))
-        } else {
-            result = cleaned
-        }
-        let info = ContextTextCleaner.informationalCharCount(result)
-        NSLog("[TingMo][WindowContent] raw=%d elements=%d cleaned=%d kept=%d info=%d", joined.count, texts.count, cleaned.count, result.count, info)
-        return result.isEmpty ? nil : result
+        let info = ContextTextCleaner.informationalCharCount(cleaned)
+        NSLog("[TingMo][WindowContent] raw=%d elements=%d cleaned=%d info=%d", joined.count, texts.count, cleaned.count, info)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     private func traverse(
