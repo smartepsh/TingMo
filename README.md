@@ -19,7 +19,7 @@ TingMo lives in your menu bar and provides pluggable speech-to-text with optiona
 ## Requirements
 
 - macOS 13.0+ (Ventura)
-- Apple Silicon or Intel
+- Apple Silicon
 
 ## Building
 
