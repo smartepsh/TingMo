@@ -23,6 +23,7 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
     case openrouter
     case ollama
     case lmstudio
+    case omlx
     case cerebras
     case sambanova
     case cohere
@@ -54,6 +55,7 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .openrouter: "OpenRouter"
         case .ollama: "Ollama"
         case .lmstudio: "LM Studio"
+        case .omlx: "oMLX"
         case .cerebras: "Cerebras"
         case .sambanova: "SambaNova"
         case .cohere: "Cohere"
@@ -99,6 +101,8 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "http://localhost:11434"
         case .lmstudio:
             "http://localhost:1234"
+        case .omlx:
+            "http://localhost:8000"
         case .cerebras:
             "https://api.cerebras.ai"
         case .sambanova:
@@ -142,6 +146,10 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "llama3.3"
         case .lmstudio:
             "llama-3.3-70b-instruct"
+        case .omlx:
+            // oMLX serves whatever models the user placed in its model dir,
+            // so there is no universal id — fetch the live list instead.
+            "default"
         case .cerebras:
             "llama-3.3-70b"
         case .sambanova:
@@ -181,6 +189,8 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "tingmo.llm.ollama"
         case .lmstudio:
             "tingmo.llm.lmstudio"
+        case .omlx:
+            "tingmo.llm.omlx"
         case .cerebras:
             "tingmo.llm.cerebras"
         case .sambanova:
@@ -192,7 +202,7 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var isLocalProvider: Bool {
         switch self {
-        case .ollama, .lmstudio:
+        case .ollama, .lmstudio, .omlx:
             true
         default:
             false
@@ -229,6 +239,8 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             self = .ollama
         case "lmstudio":
             self = .lmstudio
+        case "omlx":
+            self = .omlx
         case "cerebras":
             self = .cerebras
         case "sambanova":

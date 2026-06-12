@@ -112,6 +112,9 @@
     "Correction models store reusable LLM connections. API keys are stored locally with encryption; presets reference these models by name." : {
 
     },
+    "Could not read the model list from the server's response." : {
+
+    },
     "Current endpoint: %@" : {
 
     },
@@ -197,6 +200,9 @@
 
     },
     "Failed to copy model: %@" : {
+
+    },
+    "Fetch available models from the server" : {
 
     },
     "Filter by language" : {
@@ -805,6 +811,9 @@
     "Test" : {
 
     },
+    "The base URL is not a valid URL." : {
+
+    },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {
         "zh-Hans" : {
@@ -816,6 +825,15 @@
       }
     },
     "The selected item is not a valid WhisperKit model folder." : {
+
+    },
+    "The server rejected the API key." : {
+
+    },
+    "The server returned an error (HTTP %lld)." : {
+
+    },
+    "The server returned no models." : {
 
     },
     "This model is active in your preset. Deleting it will set the Correction Engine to None." : {

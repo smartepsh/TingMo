@@ -211,6 +211,12 @@ struct LLMInstanceSettingsSection: View {
     @State private var draftEndpoints: [UUID: String] = [:]
     @State private var draftModels: [UUID: String] = [:]
 
+    // Live model catalog fetched from the provider's /v1/models endpoint
+    @State private var fetchedModels: [UUID: [String]] = [:]
+    @State private var isFetchingModels: [UUID: Bool] = [:]
+    @State private var modelFetchErrors: [UUID: String] = [:]
+    @State private var modelPickerShownFor: UUID?
+
     enum TestResult {
         case success
         case failure(String)
@@ -231,8 +237,31 @@ struct LLMInstanceSettingsSection: View {
                             .textFieldStyle(.roundedBorder)
                             .textContentType(.URL)
 
-                        TextField(String(localized: "Model"), text: draftModelBinding(for: instance.id))
-                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 6) {
+                            TextField(String(localized: "Model"), text: draftModelBinding(for: instance.id))
+                                .textFieldStyle(.roundedBorder)
+                            Button {
+                                Task { await fetchModels(for: instance) }
+                            } label: {
+                                if isFetchingModels[instance.id, default: false] {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "list.bullet")
+                                }
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(isFetchingModels[instance.id, default: false])
+                            .help(String(localized: "Fetch available models from the server"))
+                            .popover(isPresented: modelPickerBinding(for: instance.id)) {
+                                modelListPopover(for: instance)
+                            }
+                        }
+
+                        if let fetchError = modelFetchErrors[instance.id] {
+                            Label(fetchError, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
 
                         SecureField(
                             String(localized: "API Key"),
@@ -445,6 +474,80 @@ struct LLMInstanceSettingsSection: View {
                 pendingDeleteID = nil
             }
         }
+    }
+
+    // MARK: - Model list fetching
+
+    private func fetchModels(for instance: LLMInstance) async {
+        let id = instance.id
+        guard !isFetchingModels[id, default: false] else { return }
+        isFetchingModels[id] = true
+        modelFetchErrors[id] = nil
+        defer { isFetchingModels[id] = false }
+
+        // Respect unsaved edits: use the draft endpoint and draft key when
+        // present so the user can fetch before ever saving the form.
+        var copy = instance
+        if let draftEndpoint = draftEndpoints[id] { copy.endpoint = draftEndpoint }
+        let draftKey = (draftAPIKeys[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = draftKey.isEmpty
+            ? (EncryptedKeyStore.get(service: instance.keychainService) ?? "")
+            : draftKey
+
+        do {
+            let models = try await LLMModelListFetcher.fetchModels(
+                provider: copy.provider,
+                baseURL: copy.effectiveBaseURL,
+                apiKey: apiKey
+            )
+            fetchedModels[id] = models
+            if models.isEmpty {
+                modelFetchErrors[id] = String(localized: "The server returned no models.")
+            } else {
+                modelPickerShownFor = id
+            }
+        } catch {
+            modelFetchErrors[id] = error.localizedDescription
+        }
+    }
+
+    private func modelPickerBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { modelPickerShownFor == id },
+            set: { if !$0 { modelPickerShownFor = nil } }
+        )
+    }
+
+    @ViewBuilder
+    private func modelListPopover(for instance: LLMInstance) -> some View {
+        let models = fetchedModels[instance.id] ?? []
+        let currentModel = draftModels[instance.id] ?? instance.model
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(models, id: \.self) { name in
+                    Button {
+                        draftModels[instance.id] = name
+                        clearVerifiedFingerprint(for: instance.id)
+                        modelPickerShownFor = nil
+                    } label: {
+                        HStack {
+                            Text(name).lineLimit(1)
+                            Spacer()
+                            if name == currentModel {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                }
+            }
+            .padding(6)
+        }
+        .frame(width: 340, height: min(CGFloat(models.count) * 28 + 16, 320))
     }
 
     // MARK: - Verification
