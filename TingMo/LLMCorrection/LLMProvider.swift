@@ -21,9 +21,6 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
     case perplexity
     case xai
     case openrouter
-    case ollama
-    case lmstudio
-    case omlx
     case cerebras
     case sambanova
     case cohere
@@ -53,9 +50,6 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .perplexity: "Perplexity"
         case .xai: "xAI (Grok)"
         case .openrouter: "OpenRouter"
-        case .ollama: "Ollama"
-        case .lmstudio: "LM Studio"
-        case .omlx: "oMLX"
         case .cerebras: "Cerebras"
         case .sambanova: "SambaNova"
         case .cohere: "Cohere"
@@ -97,12 +91,6 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "https://api.x.ai"
         case .openrouter:
             "https://openrouter.ai/api"
-        case .ollama:
-            "http://localhost:11434"
-        case .lmstudio:
-            "http://localhost:1234"
-        case .omlx:
-            "http://localhost:8000"
         case .cerebras:
             "https://api.cerebras.ai"
         case .sambanova:
@@ -142,14 +130,6 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "grok-3-mini"
         case .openrouter:
             "meta-llama/llama-3.3-70b-instruct"
-        case .ollama:
-            "llama3.3"
-        case .lmstudio:
-            "llama-3.3-70b-instruct"
-        case .omlx:
-            // oMLX serves whatever models the user placed in its model dir,
-            // so there is no universal id — fetch the live list instead.
-            "default"
         case .cerebras:
             "llama-3.3-70b"
         case .sambanova:
@@ -185,27 +165,12 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             "tingmo.llm.xai"
         case .openrouter:
             "tingmo.llm.openrouter"
-        case .ollama:
-            "tingmo.llm.ollama"
-        case .lmstudio:
-            "tingmo.llm.lmstudio"
-        case .omlx:
-            "tingmo.llm.omlx"
         case .cerebras:
             "tingmo.llm.cerebras"
         case .sambanova:
             "tingmo.llm.sambanova"
         case .cohere:
             "tingmo.llm.cohere"
-        }
-    }
-
-    var isLocalProvider: Bool {
-        switch self {
-        case .ollama, .lmstudio, .omlx:
-            true
-        default:
-            false
         }
     }
 
@@ -235,12 +200,6 @@ enum LLMProviderID: String, CaseIterable, Codable, Identifiable, Sendable {
             self = .xai
         case "openrouter":
             self = .openrouter
-        case "ollama":
-            self = .ollama
-        case "lmstudio":
-            self = .lmstudio
-        case "omlx":
-            self = .omlx
         case "cerebras":
             self = .cerebras
         case "sambanova":
@@ -329,8 +288,13 @@ struct LLMConfig: Codable, Equatable, Sendable {
     }
 
     var usesLocalEndpoint: Bool {
-        if provider.isLocalProvider { return true }
-        guard let host = URL(string: effectiveEndpoint)?.host?.lowercased() else { return false }
+        Self.isLoopbackHost(in: effectiveEndpoint)
+    }
+
+    /// Loopback endpoints (Ollama, LM Studio, oMLX, …) commonly run without
+    /// authentication, so an empty API key is acceptable for them.
+    static func isLoopbackHost(in urlString: String) -> Bool {
+        guard let host = URL(string: urlString)?.host?.lowercased() else { return false }
         return host == "localhost" || host == "127.0.0.1" || host == "::1"
     }
 

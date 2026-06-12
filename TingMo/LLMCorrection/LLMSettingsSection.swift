@@ -298,7 +298,8 @@ struct LLMInstanceSettingsSection: View {
                                 .buttonStyle(.plain)
                                 .disabled(isTesting[instance.id, default: false]
                                     || (!instanceStore.hasAPIKey(for: instance)
-                                        && (draftAPIKeys[instance.id] ?? "").isEmpty))
+                                        && (draftAPIKeys[instance.id] ?? "").isEmpty
+                                        && !usesLocalEndpoint(instance)))
                             }
                         }
 
@@ -509,6 +510,14 @@ struct LLMInstanceSettingsSection: View {
         } catch {
             modelFetchErrors[id] = error.localizedDescription
         }
+    }
+
+    /// Local servers commonly run without auth, so the connectivity test
+    /// must stay enabled for them even when no API key is stored.
+    private func usesLocalEndpoint(_ instance: LLMInstance) -> Bool {
+        var copy = instance
+        if let draft = draftEndpoints[instance.id] { copy.endpoint = draft }
+        return LLMConfig.isLoopbackHost(in: copy.effectiveBaseURL)
     }
 
     private func modelPickerBinding(for id: UUID) -> Binding<Bool> {
