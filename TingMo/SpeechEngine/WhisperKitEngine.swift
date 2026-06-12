@@ -180,6 +180,12 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             return
         }
         if Self.isModelDownloaded(model) {
+            // Backfill the tokenizer for models downloaded before we started
+            // bundling it. Best-effort: these models can still load through
+            // WhisperKit's hub cache, so a failure here must not brick them.
+            if !Self.isTokenizerBundled(for: model) {
+                try? await downloadTokenizer(endpoint: endpoint)
+            }
             info.isReady = true
             return
         }
@@ -208,10 +214,79 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
                     progress?(p.fractionCompleted)
                 }
             }
+            try await downloadTokenizer(endpoint: endpoint)
             Self.invalidateDiskUsage(for: model)
             info.isReady = true
         } catch {
             throw SpeechEngineError.networkError(underlying: error)
+        }
+    }
+
+    // MARK: - Tokenizer bundling
+
+    /// HuggingFace repo that hosts the tokenizer for this variant, e.g.
+    /// "openai/whisper-large-v3". The turbo variant shares large-v3's
+    /// tokenizer. Imported models manage their own files, so they get nil.
+    static func tokenizerRepo(for model: WhisperModel) -> String? {
+        guard !model.isImported else { return nil }
+        let prefix = "openai_whisper-"
+        guard model.variant.hasPrefix(prefix) else { return nil }
+        var size = String(model.variant.dropFirst(prefix.count))
+        // Strip argmax packaging suffixes — quantization ("_626MB") and the
+        // turbo-compile marker ("_turbo") don't change the vocabulary.
+        if let quant = size.range(of: #"_\d+MB$"#, options: .regularExpression) {
+            size.removeSubrange(quant)
+        }
+        if size.hasSuffix("_turbo") {
+            size.removeLast("_turbo".count)
+        }
+        // The 2024-09-30 release (OpenAI's turbo model) shares large-v3's
+        // tokenizer; WhisperKit's own variant mapping does the same.
+        if size == "large-v3-v20240930" {
+            size = "large-v3"
+        }
+        return "openai/whisper-\(size)"
+    }
+
+    /// Files WhisperKit needs to load the tokenizer without touching the
+    /// network. Deliberately excludes config.json: the model folder already
+    /// contains WhisperKit's own config.json and overwriting it would break
+    /// model loading.
+    private static let tokenizerFiles = ["tokenizer.json", "tokenizer_config.json"]
+
+    /// True when the tokenizer files sit next to the .mlmodelc bundles, so
+    /// `loadModel()` resolves the tokenizer offline (WhisperKit searches the
+    /// model folder before falling back to a hub fetch).
+    static func isTokenizerBundled(for model: WhisperModel) -> Bool {
+        let folder = modelFolder(for: model)
+        return tokenizerFiles.allSatisfy {
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
+        }
+    }
+
+    /// Fetch the tokenizer files into the model folder from the given
+    /// HuggingFace-compatible host (nil/empty falls back to huggingface.co).
+    private func downloadTokenizer(endpoint: String?) async throws {
+        guard let repo = Self.tokenizerRepo(for: model) else { return }
+        let folder = Self.modelFolder(for: model)
+
+        var base = (endpoint?.isEmpty == false ? endpoint! : "https://huggingface.co")
+        while base.hasSuffix("/") { base.removeLast() }
+
+        for file in Self.tokenizerFiles {
+            let destination = folder.appendingPathComponent(file)
+            if FileManager.default.fileExists(atPath: destination.path) { continue }
+
+            guard let url = URL(string: "\(base)/\(repo)/resolve/main/\(file)") else {
+                throw URLError(.badURL)
+            }
+            let request = URLRequest(url: url, timeoutInterval: 60)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(status), !data.isEmpty else {
+                throw URLError(.badServerResponse)
+            }
+            try data.write(to: destination, options: .atomic)
         }
     }
 
