@@ -408,9 +408,9 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 76D2F5102FA00D8200C0FFEE /* Signing.xcconfig */;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = tingmo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ARCHS = arm64;
 				CODE_SIGN_ENTITLEMENTS = TingMo/TingMo.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
