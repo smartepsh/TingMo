@@ -343,6 +343,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             task: .transcribe,
             language: language.isEmpty ? nil : language,
             temperature: 0.0,
+            // WhisperKit defaults detectLanguage to false when prefill is on,
+            // and a nil language then prefills <|en|> — forcing English output
+            // for Chinese speech. Detect explicitly when no language is pinned.
+            detectLanguage: language.isEmpty,
             wordTimestamps: false,
             suppressBlank: true,
             chunkingStrategy: .vad
@@ -388,6 +392,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             task: .transcribe,
             language: language.isEmpty ? nil : language,
             temperature: 0.0,
+            detectLanguage: language.isEmpty,
             wordTimestamps: false,
             suppressBlank: true
         )
