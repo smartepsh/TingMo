@@ -46,6 +46,7 @@ final class DictationPipeline {
     private let contextSettings: ContextSettingsStore
     private let correctionService = LLMCorrectionService()
     private let capture = AudioCapture()
+    private let mediaGuard = MediaPlaybackGuard()
     private let ocrCollector = ScreenshotOCRCollector()
     private let basicCollector = BasicContextCollector()
     private var storedOCRText: String?
@@ -83,6 +84,10 @@ final class DictationPipeline {
 
         lastError = nil
 
+        // Pause media before the mic opens so the recording doesn't catch
+        // the tail of whatever is playing.
+        mediaGuard.pauseForRecording()
+
         do {
             let frontmost = NSWorkspace.shared.frontmostApplication
             let targetPID = frontmost?.processIdentifier
@@ -106,6 +111,7 @@ final class DictationPipeline {
             }
         } catch {
             // Normalize any capture failure to a user-facing error.
+            mediaGuard.resumeAfterRecording()
             let surfaced = PipelineError.deviceUnavailable
             lastError = surfaced
             throw surfaced
@@ -122,10 +128,14 @@ final class DictationPipeline {
         do {
             audioURL = try capture.stop()
         } catch {
+            mediaGuard.resumeAfterRecording()
             lastError = error
             state = .idle
             return
         }
+
+        // Recording is over — hand the speakers back while we transcribe.
+        mediaGuard.resumeAfterRecording()
 
         state = .transcribing
 
@@ -146,6 +156,7 @@ final class DictationPipeline {
             storedTargetPID = nil
             storedTargetAppName = nil
             capture.cancel()
+            mediaGuard.resumeAfterRecording()
             state = .idle
         case .transcribing, .idle:
             break
