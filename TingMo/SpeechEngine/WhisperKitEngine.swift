@@ -26,8 +26,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         WhisperModel(id: "base", variant: "openai_whisper-base", name: "Whisper Base", size: "150 MB"),
         WhisperModel(id: "small", variant: "openai_whisper-small", name: "Whisper Small", size: "500 MB"),
         WhisperModel(id: "medium", variant: "openai_whisper-medium", name: "Whisper Medium", size: "1.5 GB"),
+        WhisperModel(id: "turbo-626", variant: "openai_whisper-large-v3-v20240930_626MB", name: "Whisper Turbo Compressed", size: "626 MB"),
+        WhisperModel(id: "turbo", variant: "openai_whisper-large-v3-v20240930", name: "Whisper Turbo", size: "1.6 GB"),
         WhisperModel(id: "large-v3", variant: "openai_whisper-large-v3", name: "Whisper Large v3", size: "3.1 GB"),
-        WhisperModel(id: "large-v3-turbo", variant: "openai_whisper-large-v3_turbo", name: "Whisper Large v3 Turbo", size: "1.6 GB"),
+        WhisperModel(id: "large-v3-turbo", variant: "openai_whisper-large-v3_turbo", name: "Whisper Large v3 (Optimized)", size: "3.1 GB"),
     ]
 
     /// Default engine ID used when the user has no saved preference (M1 ships with tiny).
