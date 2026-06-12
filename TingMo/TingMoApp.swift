@@ -91,10 +91,14 @@ struct TingMoApp: App {
     }
 
     private var primaryButtonTitle: String {
+        // Show the user-configured global hotkey; it can be modifier-only
+        // (e.g. fn), which SwiftUI's keyboardShortcut cannot represent, so
+        // it lives in the title instead of a key equivalent.
+        let hotkeySuffix = " (\(hotkeyManager.hotkey.displayName))"
         switch pipeline.state {
-        case .idle: String(localized: "Start Recording")
-        case .recording: String(localized: "Stop Recording")
-        case .transcribing: String(localized: "Transcribing…")
+        case .idle: return String(localized: "Start Recording") + hotkeySuffix
+        case .recording: return String(localized: "Stop Recording") + hotkeySuffix
+        case .transcribing: return String(localized: "Transcribing…")
         }
     }
 
@@ -103,7 +107,6 @@ struct TingMoApp: App {
             Button(primaryButtonTitle) {
                 toggleRecording()
             }
-            .keyboardShortcut("r", modifiers: .command)
             .disabled(pipeline.state == .transcribing)
             .onAppear {
                 guard !didCheckOnboarding else { return }
