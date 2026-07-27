@@ -81,6 +81,20 @@ final class MediaPlaybackGuardTests: XCTestCase {
         XCTAssertEqual(spy.playCount, 1)
     }
 
+    func testPlayingMediaWithoutPIDIsPausedAndResumed() async {
+        let spy = Spy()
+        spy.snapshot = .init(isPlaying: true, pid: nil)
+        let guard_ = makeGuard(spy: spy)
+        let sessionID = UUID()
+
+        let result = await guard_.beginSession(id: sessionID)
+        await guard_.endSession(id: sessionID)
+
+        XCTAssertEqual(result, .ready)
+        XCTAssertEqual(spy.pauseCount, 1)
+        XCTAssertEqual(spy.playCount, 1)
+    }
+
     func testInitiallyPausedMediaReceivesNoCommands() async {
         let spy = Spy()
         spy.snapshot = .init(isPlaying: false, pid: 42)
@@ -111,21 +125,6 @@ final class MediaPlaybackGuardTests: XCTestCase {
     func testUnknownPlaybackStateRetriesThenContinuesWithoutCommands() async {
         let spy = Spy()
         spy.snapshot = .init(isPlaying: nil, pid: nil)
-        let guard_ = makeGuard(spy: spy)
-        let sessionID = UUID()
-
-        let result = await guard_.beginSession(id: sessionID)
-        await guard_.endSession(id: sessionID)
-
-        XCTAssertEqual(result, .unverified)
-        XCTAssertEqual(spy.queryCount, 2)
-        XCTAssertEqual(spy.pauseCount, 0)
-        XCTAssertEqual(spy.playCount, 0)
-    }
-
-    func testPlayingStateWithoutPIDRetriesThenContinuesWithoutCommands() async {
-        let spy = Spy()
-        spy.snapshot = .init(isPlaying: true, pid: nil)
         let guard_ = makeGuard(spy: spy)
         let sessionID = UUID()
 
@@ -181,6 +180,19 @@ final class MediaPlaybackGuardTests: XCTestCase {
         await guard_.endSession(id: sessionID)
 
         XCTAssertEqual(spy.playCount, 0)
+    }
+
+    func testResumesWhenPIDBecomesUnavailableAfterPause() async {
+        let spy = Spy()
+        spy.snapshot = .init(isPlaying: true, pid: 42)
+        let guard_ = makeGuard(spy: spy)
+        let sessionID = UUID()
+
+        _ = await guard_.beginSession(id: sessionID)
+        spy.snapshot = .init(isPlaying: false, pid: nil)
+        await guard_.endSession(id: sessionID)
+
+        XCTAssertEqual(spy.playCount, 1)
     }
 
     func testDoesNotResumeWhenUserAlreadyResumedManually() async {

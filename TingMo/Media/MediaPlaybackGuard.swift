@@ -56,9 +56,10 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         self.queryAttempts = max(1, queryAttempts)
     }
 
-    /// Inspect the current Now Playing session and pause it only when it is
-    /// definitely playing and has a stable PID. Unknown state fails open:
-    /// recording may continue, but no media command is guessed.
+    /// Inspect the current Now Playing session and pause it when playback is
+    /// confirmed. Application identity is best-effort: MediaRemote can expose
+    /// a valid Now Playing session while withholding or timing out its PID.
+    /// Unknown playback state still fails open without sending a command.
     func beginSession(id: UUID) async -> BeginResult {
         await withCheckedContinuation { continuation in
             operationQueue.async { [self] in
@@ -108,17 +109,16 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             activeSession?.beginResult = .ready
             return .ready
         }
-        guard let pid = snapshot.pid else {
-            return .unverified
-        }
 
         guard pausePlayback() else {
+            NSLog("[TingMo] MediaRemote pause command was rejected")
             return .unverified
         }
 
         // The explicit pause was accepted, so this exact session now owns one
-        // resume debt even if confirmation times out.
-        activeSession?.pausedPID = pid
+        // resume debt even if confirmation times out. PID is optional because
+        // MediaRemote may report playback without exposing app identity.
+        activeSession?.pausedPID = snapshot.pid
         activeSession?.owesResume = true
 
         // Give mediaremoted a brief opportunity to apply the command, then
@@ -128,7 +128,8 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             Thread.sleep(forTimeInterval: retryDelay)
         }
         let confirmation = queryPlayback()
-        let pauseConfirmed = confirmation.isPlaying == false && confirmation.pid == pid
+        let pauseConfirmed = confirmation.isPlaying == false &&
+            identitiesDoNotConflict(snapshot.pid, confirmation.pid)
         let result: BeginResult = pauseConfirmed ? .ready : .unverified
         activeSession?.beginResult = result
         return result
@@ -137,32 +138,37 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     private func finishActiveSessionBlocking() {
         guard let session = activeSession else { return }
         defer { activeSession = nil }
-        guard session.owesResume, let pausedPID = session.pausedPID else { return }
+        guard session.owesResume else { return }
 
         guard let snapshot = resumeSnapshotWithRetry() else { return }
-        guard snapshot.pid == pausedPID else { return }
+        guard identitiesDoNotConflict(session.pausedPID, snapshot.pid) else { return }
 
         // The user may have resumed manually while recording. Explicit play
-        // is needed only when the same app remains paused.
+        // is needed only when the current session remains paused. When both
+        // PIDs are available, a mismatch still protects a different player.
         guard snapshot.isPlaying == false else { return }
-        _ = resumePlayback()
+        if !resumePlayback() {
+            NSLog("[TingMo] MediaRemote play command was rejected")
+        }
     }
 
-    /// For recording start, `false` is conclusive even when there is no PID.
-    /// `true` requires a PID so any pause can later be restored safely.
+    /// Playback state is authoritative for deciding whether to pause. PID is
+    /// useful for identity checks when available, but is not a prerequisite.
     private func initialSnapshotWithRetry() -> PlaybackSnapshot? {
-        queryWithRetry { snapshot in
-            snapshot.isPlaying == false ||
-                (snapshot.isPlaying == true && snapshot.pid != nil)
-        }
+        queryWithRetry { $0.isPlaying != nil }
     }
 
-    /// Resume requires both state and identity; otherwise no play command is
-    /// sent to a potentially unrelated Now Playing app.
+    /// Resume also requires a known playback state. Identity remains
+    /// best-effort because MediaRemote may stop reporting PID after pausing.
     private func resumeSnapshotWithRetry() -> PlaybackSnapshot? {
-        queryWithRetry { snapshot in
-            snapshot.isPlaying != nil && snapshot.pid != nil
-        }
+        queryWithRetry { $0.isPlaying != nil }
+    }
+
+    /// Missing identity is inconclusive rather than a conflict. Only two
+    /// known, different PIDs prove that the active player changed.
+    private func identitiesDoNotConflict(_ lhs: pid_t?, _ rhs: pid_t?) -> Bool {
+        guard let lhs, let rhs else { return true }
+        return lhs == rhs
     }
 
     private func queryWithRetry(
