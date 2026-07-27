@@ -1,20 +1,18 @@
 import Foundation
 import Observation
 
-/// Manages the list of available speech engines, model downloads, and active engine selection.
+/// Manages available speech engines plus their download and runtime preparation lifecycle.
 @Observable
 final class EngineRegistry {
     /// All registered engines.
     private(set) var engines: [any SpeechEngine] = []
 
-    /// Currently active engine ID (persisted).
-    var activeEngineID: String {
-        didSet { UserDefaults.standard.set(activeEngineID, forKey: "EngineRegistry.activeEngineID") }
-    }
-
-    /// The currently active engine instance.
-    var activeEngine: (any SpeechEngine)? {
-        engines.first { $0.info.id == activeEngineID }
+    enum PreparationState: Equatable {
+        case ready
+        case notDownloaded
+        case unloaded
+        case preparing
+        case failed(String)
     }
 
     func engine(id: String) -> (any SpeechEngine)? {
@@ -31,10 +29,12 @@ final class EngineRegistry {
     /// Last download failure per engine (surfaced to UI). Cleared on retry.
     var downloadErrors: [String: String] = [:]
 
-    /// Engine IDs currently running `loadModel()` (for a "loading…" UI hint).
-    /// Large variants take several seconds to compile CoreML; without this
-    /// the user has no feedback that anything is happening.
+    /// Engine IDs currently downloading, prewarming, or loading a model.
     var loadingEngineIDs: Set<String> = []
+
+    /// Most recent runtime preparation failure per engine. Unlike download UI
+    /// errors, these are also used by the recording gate.
+    var preparationErrors: [String: String] = [:]
 
     /// In-flight download tasks keyed by engine ID, so we can cancel them.
     private var downloadTasks: [String: Task<Void, Never>] = [:]
@@ -73,11 +73,8 @@ final class EngineRegistry {
         self.downloadSource = downloadSource
         self.importedModelStore = importedModelStore
         self.sttInstanceStore = sttInstanceStore
-        let defaultID = WhisperKitEngine.defaultModelEngineID
-        activeEngineID = UserDefaults.standard.string(forKey: "EngineRegistry.activeEngineID") ?? defaultID
         registerBuiltInEngines()
         registerImportedModels()
-        preloadActiveEngine()
     }
 
     // MARK: - Registration
@@ -113,10 +110,6 @@ final class EngineRegistry {
     /// Re-create remote STT engines from the current STTInstanceStore state.
     func refreshRemoteSTTEngines() {
         registerRemoteSTTEngines()
-        // If the active engine was a remote one that was removed, fall back
-        if activeEngine == nil, let fallback = engines.first(where: { $0.info.id == ConfigPreset.defaultSpeechEngineID }) {
-            activeEngineID = fallback.info.id
-        }
     }
 
     /// Re-query the keychain for every remote engine and update `isReady`.
@@ -157,39 +150,63 @@ final class EngineRegistry {
         registerImportedModels()
     }
 
-    // MARK: - Engine Selection
+    // MARK: - Engine Preparation
 
-    func setActiveEngine(_ engineID: String) {
-        guard engines.contains(where: { $0.info.id == engineID }) else { return }
-        activeEngineID = engineID
-        preloadActiveEngine()
-    }
+    /// Runtime preparation state for an engine. Remote engines require no
+    /// local model load and are ready as soon as their normal readiness checks
+    /// pass. WhisperKit readiness includes prewarm and in-memory loading.
+    func preparationState(for engineID: String) -> PreparationState {
+        guard let engine = engine(id: engineID) else {
+            return .failed(String(localized: "The selected speech engine is unavailable."))
+        }
+        guard let whisper = engine as? WhisperKitEngine else { return .ready }
+        if loadingEngineIDs.contains(engineID) { return .preparing }
+        if let message = preparationErrors[engineID] { return .failed(message) }
+        guard whisper.info.isReady else { return .notDownloaded }
 
-    /// Kick off a background `loadModel()` for the active engine so the
-    /// first recording after a model switch doesn't pay the CoreML
-    /// compile/load tax synchronously. No-op if already loaded.
-    func preloadActiveEngine() {
-        guard let whisper = activeEngine as? WhisperKitEngine else { return }
-        guard whisper.info.isReady else { return }
-        let id = whisper.info.id
-        loadingEngineIDs.insert(id)
-        Task.detached { [weak self] in
-            try? await whisper.loadModel()
-            await MainActor.run { [weak self] in
-                _ = self?.loadingEngineIDs.remove(id)
-            }
+        return switch whisper.modelLoadState {
+        case .unloaded: .unloaded
+        case .loading: .preparing
+        case .loaded: .ready
+        case .failed(let message): .failed(message)
         }
     }
 
-    /// Load the active engine synchronously for the pipeline. Updates the
-    /// `loadingEngineIDs` hint around the call so UI can show a "loading"
-    /// badge during first-use compile/prewarm.
-    func loadActiveEngine() async throws {
-        guard let whisper = activeEngine as? WhisperKitEngine else { return }
-        let id = whisper.info.id
-        loadingEngineIDs.insert(id)
-        defer { loadingEngineIDs.remove(id) }
-        try await whisper.loadModel()
+    /// Prepare one explicitly-selected local engine. Selection itself belongs
+    /// to ConfigPresetStore; the registry only performs the requested side
+    /// effect. Calls are safe to repeat because WhisperKitEngine is
+    /// single-flight.
+    func prepareEngine(_ engineID: String, downloadIfNeeded: Bool = false) {
+        guard let whisper = engine(id: engineID) as? WhisperKitEngine else { return }
+        guard whisper.info.isReady || downloadIfNeeded else { return }
+        guard !whisper.isModelLoaded else {
+            loadingEngineIDs.remove(engineID)
+            preparationErrors[engineID] = nil
+            return
+        }
+        guard !loadingEngineIDs.contains(engineID) else { return }
+
+        loadingEngineIDs.insert(engineID)
+        preparationErrors[engineID] = nil
+        let endpoint = downloadSource.effectiveEndpoint
+        let needsDownload = !whisper.info.isReady
+        Task.detached { [weak self] in
+            let failureMessage: String?
+            do {
+                if needsDownload {
+                    try await whisper.downloadModel(endpoint: endpoint)
+                }
+                try await whisper.loadModel()
+                failureMessage = nil
+            } catch {
+                failureMessage = error.localizedDescription
+                NSLog("[TingMo] model preparation failed for \(engineID): \(error)")
+            }
+            await MainActor.run { [weak self] in
+                self?.preparationErrors[engineID] = failureMessage
+                _ = self?.loadingEngineIDs.remove(engineID)
+            }
+        }
     }
 
     // MARK: - Language Compatibility
@@ -198,22 +215,12 @@ final class EngineRegistry {
         engines.filter { $0.supportsLanguage(language) }
     }
 
-    func isActiveEngineCompatible(with language: String) -> Bool {
-        activeEngine?.supportsLanguage(language) ?? false
-    }
-
     // MARK: - Downloads
 
-    /// Kick off a download for the given engine ID. When it finishes, if no
-    /// other model is currently active-and-ready, the newly downloaded model
-    /// becomes active. Safe to call twice — returns immediately if already
-    /// downloading.
+    /// Kick off a download for the given engine ID. Safe to call twice —
+    /// returns immediately if that engine is already downloading.
     @MainActor
-    func downloadModel(
-        engineID: String,
-        makeActiveWhenDone: Bool = true,
-        onActiveWhenDone: (() -> Void)? = nil
-    ) {
+    func downloadModel(engineID: String) {
         guard let engine = engines.first(where: { $0.info.id == engineID }) else { return }
         guard let whisper = engine as? WhisperKitEngine else { return }
         guard downloadProgress[engineID] == nil else { return }
@@ -239,12 +246,6 @@ final class EngineRegistry {
                     }
                 }
                 if Task.isCancelled { return }
-                if makeActiveWhenDone {
-                    await MainActor.run { [weak self] in
-                        self?.setActiveEngine(engineID)
-                        onActiveWhenDone?()
-                    }
-                }
             } catch {
                 if Task.isCancelled { return }
                 await MainActor.run { [weak self] in

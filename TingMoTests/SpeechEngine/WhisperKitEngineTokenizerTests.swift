@@ -13,6 +13,28 @@ final class WhisperKitEngineTokenizerTests: XCTestCase {
         )
     }
 
+    // MARK: - Runtime readiness
+
+    func testDownloadedFilesDoNotMeanModelIsLoadedInMemory() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("model-state-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        for bundle in ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"] {
+            try FileManager.default.createDirectory(
+                at: folder.appendingPathComponent(bundle, isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
+
+        let engine = WhisperKitEngine(model: model(variant: "openai_whisper-tiny", importedFolder: folder))
+
+        XCTAssertTrue(engine.info.isReady)
+        XCTAssertEqual(engine.modelLoadState, .unloaded)
+        XCTAssertFalse(engine.isModelLoaded)
+    }
+
     // MARK: - tokenizerRepo(for:)
 
     func testMapsPlainVariantsToMatchingOpenAIRepo() {

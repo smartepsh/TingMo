@@ -109,7 +109,7 @@ struct PresetSettingsSection: View {
             get: { presetStore.defaultPreset.speechEngineID },
             set: { newValue in
                 presetStore.defaultPreset.speechEngineID = newValue
-                engineRegistry.setActiveEngine(newValue)
+                engineRegistry.prepareEngine(newValue)
             }
         )
     }
@@ -121,6 +121,7 @@ struct PresetSettingsSection: View {
             if let uuid = UUID(uuidString: uuidString),
                sttInstanceStore.instance(id: uuid) == nil {
                 presetStore.defaultPreset.speechEngineID = ConfigPreset.defaultSpeechEngineID
+                engineRegistry.prepareEngine(ConfigPreset.defaultSpeechEngineID)
             }
         }
     }

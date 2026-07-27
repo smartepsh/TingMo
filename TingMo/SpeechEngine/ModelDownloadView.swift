@@ -161,7 +161,7 @@ struct ModelDownloadView: View {
             } else if hasError {
                 Button(String(localized: "Retry")) {
                     engineRegistry.clearDownloadError(for: engineID)
-                    engineRegistry.downloadModel(engineID: engineID, makeActiveWhenDone: false)
+                    engineRegistry.downloadModel(engineID: engineID)
                 }
             } else if downloaded {
                 let isActive = presetStore.defaultPreset.speechEngineID == engineID
@@ -173,6 +173,7 @@ struct ModelDownloadView: View {
                             deletedID: engineID,
                             fallbackID: WhisperKitEngine.defaultModelEngineID
                         )
+                        engineRegistry.prepareEngine(WhisperKitEngine.defaultModelEngineID)
                     } else if isPending {
                         _ = engineRegistry.deleteDownloadedModel(engineID: engineID)
                         presetStore.replaceSpeechEngineSelection(
@@ -195,7 +196,7 @@ struct ModelDownloadView: View {
                 }
             } else {
                 Button {
-                    engineRegistry.downloadModel(engineID: engineID, makeActiveWhenDone: false)
+                    engineRegistry.downloadModel(engineID: engineID)
                 } label: {
                     Image(systemName: "arrow.down.circle")
                         .foregroundStyle(.secondary)

@@ -19,7 +19,6 @@ struct TingMoApp: App {
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
-    @State private var didPrefetchModel = false
     @State private var hotkeyCancellable: AnyCancellable?
 
     private static let menuBarIcon: NSImage = {
@@ -54,6 +53,14 @@ struct TingMoApp: App {
             sttInstanceStore: sttInstanceStore
         )
         let languagePreference = LanguagePreference()
+
+        // Model selection belongs to the preset. Begin preparing that exact
+        // engine immediately rather than waiting for a SwiftUI view to appear.
+        registry.prepareEngine(
+            presetStore.defaultPreset.speechEngineID,
+            downloadIfNeeded: true
+        )
+
         _permissionManager = State(initialValue: permissionManager)
         _audioDeviceManager = State(initialValue: audioDeviceManager)
         _hotkeyManager = State(initialValue: hotkeyManager)
@@ -90,15 +97,28 @@ struct TingMoApp: App {
         }
     }
 
+    private var selectedEnginePreparationState: EngineRegistry.PreparationState {
+        engineRegistry.preparationState(for: presetStore.defaultPreset.speechEngineID)
+    }
+
+    private var isSelectedEnginePreparing: Bool {
+        selectedEnginePreparationState == .preparing
+    }
+
     private var primaryButtonTitle: String {
         // Show the user-configured global hotkey; it can be modifier-only
         // (e.g. fn), which SwiftUI's keyboardShortcut cannot represent, so
         // it lives in the title instead of a key equivalent.
         let hotkeySuffix = " (\(hotkeyManager.hotkey.displayName))"
         switch pipeline.state {
-        case .idle: return String(localized: "Start Recording") + hotkeySuffix
-        case .recording: return String(localized: "Stop Recording") + hotkeySuffix
-        case .transcribing: return String(localized: "Transcribing…")
+        case .idle where isSelectedEnginePreparing:
+            return String(localized: "Preparing Speech Model…")
+        case .idle:
+            return String(localized: "Start Recording") + hotkeySuffix
+        case .recording:
+            return String(localized: "Stop Recording") + hotkeySuffix
+        case .transcribing:
+            return String(localized: "Transcribing…")
         }
     }
 
@@ -107,7 +127,7 @@ struct TingMoApp: App {
             Button(primaryButtonTitle) {
                 toggleRecording()
             }
-            .disabled(pipeline.state == .transcribing)
+            .disabled(pipeline.state == .transcribing || isSelectedEnginePreparing)
             .onAppear {
                 guard !didCheckOnboarding else { return }
                 didCheckOnboarding = true
@@ -182,7 +202,6 @@ struct TingMoApp: App {
                     }
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
-                    prefetchDefaultModelIfNeeded()
                 }
                 .onChange(of: audioDeviceManager.deviceDisconnectedDuringRecording) { _, disconnected in
                     guard disconnected else { return }
@@ -290,7 +309,7 @@ struct TingMoApp: App {
 
         Button(menuTitle(engine.info.name, isActive: isActive)) {
             presetStore.defaultPreset.speechEngineID = engine.info.id
-            engineRegistry.setActiveEngine(engine.info.id)
+            engineRegistry.prepareEngine(engine.info.id)
         }
         .disabled(isActive)
     }
@@ -320,21 +339,4 @@ struct TingMoApp: App {
         isActive ? "✓ \(title)" : title
     }
 
-    // MARK: - Model prefetch (M1 hotest convenience)
-
-    /// Kick off a background download of the default tiny model if it's not
-    /// on disk yet, so the first recording doesn't require manual setup.
-    /// Temporary until M1-5 adds a real download UI.
-    private func prefetchDefaultModelIfNeeded() {
-        guard !didPrefetchModel else { return }
-        didPrefetchModel = true
-
-        guard let whisper = engineRegistry.engine(id: presetStore.defaultPreset.speechEngineID) as? WhisperKitEngine else { return }
-        if whisper.info.isReady { return }
-
-        Task.detached {
-            try? await whisper.downloadModel()
-            try? await whisper.loadModel()
-        }
-    }
 }

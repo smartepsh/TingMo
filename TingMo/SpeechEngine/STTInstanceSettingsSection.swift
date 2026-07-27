@@ -302,6 +302,7 @@ struct STTInstanceSettingsSection: View {
             deletedID: instanceID,
             fallbackID: ConfigPreset.defaultSpeechEngineID
         )
+        engineRegistry.prepareEngine(ConfigPreset.defaultSpeechEngineID)
         apiKeys[id] = nil
         draftAPIKeys[id] = nil
         testResults[id] = nil

@@ -19,6 +19,8 @@ final class DictationPipeline {
 
     enum PipelineError: Error, LocalizedError {
         case notReady(reason: String)
+        case modelPreparing(name: String)
+        case modelPreparationFailed(name: String, reason: String)
         case alreadyRunning
         case notRunning
         case noSpeech
@@ -27,6 +29,10 @@ final class DictationPipeline {
         var errorDescription: String? {
             switch self {
             case .notReady(let reason): reason
+            case .modelPreparing(let name):
+                "Speech model '\(name)' is still preparing. Please try again shortly."
+            case .modelPreparationFailed(let name, let reason):
+                "Speech model '\(name)' failed to prepare: \(reason). Retrying now."
             case .alreadyRunning: "Dictation is already running."
             case .notRunning: "Dictation is not running."
             case .noSpeech: "No speech detected."
@@ -74,15 +80,34 @@ final class DictationPipeline {
     ///   the system default input is used.
     func start(preferredDeviceUID: String? = nil) throws {
         guard state == .idle else { throw PipelineError.alreadyRunning }
+        lastError = nil
 
         guard let engine = currentSpeechEngine() else {
             throw PipelineError.notReady(reason: "No speech engine selected.")
         }
-        guard engine.info.isReady else {
-            throw PipelineError.notReady(reason: "Model '\(engine.info.name)' not downloaded yet.")
+        if engine is WhisperKitEngine {
+            switch registry.preparationState(for: engine.info.id) {
+            case .ready:
+                break
+            case .notDownloaded:
+                throw PipelineError.notReady(
+                    reason: "Model '\(engine.info.name)' has not been downloaded yet."
+                )
+            case .unloaded:
+                registry.prepareEngine(engine.info.id)
+                throw PipelineError.modelPreparing(name: engine.info.name)
+            case .preparing:
+                throw PipelineError.modelPreparing(name: engine.info.name)
+            case .failed(let reason):
+                registry.prepareEngine(engine.info.id, downloadIfNeeded: true)
+                throw PipelineError.modelPreparationFailed(
+                    name: engine.info.name,
+                    reason: reason
+                )
+            }
+        } else if !engine.info.isReady {
+            throw PipelineError.notReady(reason: "Speech engine '\(engine.info.name)' is not ready.")
         }
-
-        lastError = nil
 
         // Pause media before the mic opens so the recording doesn't catch
         // the tail of whatever is playing.

@@ -68,10 +68,12 @@ final class StatusIndicatorManager {
     @MainActor
     func showError(_ message: String) {
         errorHideTask?.cancel()
-        errorMessage = message
         isProcessing = false
         audioLevel = 0
         if !isShowing { show() }
+        // show() resets stale errors while creating the panel, so assign the
+        // new message afterwards to ensure a hidden indicator displays it.
+        errorMessage = message
 
         errorHideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.errorDisplayDuration))

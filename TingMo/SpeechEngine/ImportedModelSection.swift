@@ -141,7 +141,7 @@ struct ImportedModelSection: View {
                 deletedID: model.engineID,
                 fallbackID: WhisperKitEngine.defaultModelEngineID
             )
-            engineRegistry.setActiveEngine(WhisperKitEngine.defaultModelEngineID)
+            engineRegistry.prepareEngine(WhisperKitEngine.defaultModelEngineID)
         }
         importedModelStore.remove(model)
         engineRegistry.refreshImportedEngines()

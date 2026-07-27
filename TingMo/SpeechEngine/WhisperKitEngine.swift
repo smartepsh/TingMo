@@ -18,8 +18,36 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
     let model: WhisperModel
     var info: EngineInfo
 
-    private var whisperKit: WhisperKit?
-    private let loadLock = NSLock()
+    enum ModelLoadState: Equatable, Sendable {
+        case unloaded
+        case loading
+        case loaded
+        case failed(String)
+    }
+
+    /// WhisperKit does not declare Sendable, but this engine serializes its
+    /// publication through SingleFlightLoader and owns the instance for its
+    /// entire runtime. Keep the unchecked boundary local instead of weakening
+    /// the loader's generic Sendable contract.
+    private nonisolated final class LoadedModel: @unchecked Sendable {
+        let kit: WhisperKit
+        init(_ kit: WhisperKit) { self.kit = kit }
+    }
+
+    private let modelLoader = SingleFlightLoader<LoadedModel>()
+
+    var modelLoadState: ModelLoadState {
+        switch modelLoader.status {
+        case .unloaded: .unloaded
+        case .loading: .loading
+        case .loaded: .loaded
+        case .failed(let message): .failed(message)
+        }
+    }
+
+    var isModelLoaded: Bool {
+        modelLoadState == .loaded
+    }
 
     static let availableModels: [WhisperModel] = [
         WhisperModel(id: "tiny", variant: "openai_whisper-tiny", name: "Whisper Tiny", size: "75 MB"),
@@ -147,6 +175,10 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
     /// success. The engine instance stays registered; the user can redownload.
     @discardableResult
     func deleteLocalFiles() -> Bool {
+        // Invalidate first so an in-flight load cannot publish a model after
+        // its files have been removed.
+        modelLoader.invalidate()
+
         let folder = Self.modelFolder(for: model)
         guard FileManager.default.fileExists(atPath: folder.path) else {
             info.isReady = false
@@ -155,9 +187,6 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         }
         do {
             try FileManager.default.removeItem(at: folder)
-            loadLock.lock()
-            whisperKit = nil
-            loadLock.unlock()
             info.isReady = false
             Self.invalidateDiskUsage(for: model)
             return true
@@ -292,38 +321,37 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
         }
     }
 
-    /// Load the model into memory. Must be called before transcribe/startStreaming.
-    /// Downloads first if needed.
+    /// Load and prewarm the model. Concurrent callers share one task, so an
+    /// app-start preload and the transcription safety check cannot instantiate
+    /// duplicate WhisperKit models.
     func loadModel() async throws {
-        loadLock.lock()
-        let alreadyLoaded = whisperKit != nil
-        loadLock.unlock()
-        if alreadyLoaded { return }
+        let selectedModel = model
+        let modelFolder = Self.modelFolder(for: selectedModel)
+        let needsDownload = !Self.isModelDownloaded(selectedModel)
 
-        if !Self.isModelDownloaded(model) {
-            try await downloadModel()
-        }
+        _ = try await modelLoader.load { [self] in
+            if needsDownload {
+                try await downloadModel()
+            }
 
-        do {
-            let config = WhisperKitConfig(
-                model: model.variant,
-                modelRepo: "argmaxinc/whisperkit-coreml",
-                modelFolder: Self.modelFolder(for: model).path,
-                computeOptions: ModelComputeOptions(),
-                verbose: false,
-                logLevel: .error,
-                prewarm: false,
-                load: true,
-                download: false
-            )
-            let kit = try await WhisperKit(config)
-            loadLock.lock()
-            whisperKit = kit
-            loadLock.unlock()
-            info.isReady = true
-        } catch {
-            throw SpeechEngineError.transcriptionFailed(underlying: error)
+            do {
+                let config = WhisperKitConfig(
+                    model: selectedModel.variant,
+                    modelRepo: "argmaxinc/whisperkit-coreml",
+                    modelFolder: modelFolder.path,
+                    computeOptions: ModelComputeOptions(),
+                    verbose: false,
+                    logLevel: .error,
+                    prewarm: true,
+                    load: true,
+                    download: false
+                )
+                return LoadedModel(try await WhisperKit(config))
+            } catch {
+                throw SpeechEngineError.transcriptionFailed(underlying: error)
+            }
         }
+        info.isReady = true
     }
 
     // MARK: - SpeechEngine Protocol
@@ -335,10 +363,9 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             throw SpeechEngineError.unsupportedLanguage(language)
         }
 
-        loadLock.lock()
-        let kit = whisperKit
-        loadLock.unlock()
-        guard let kit else { throw SpeechEngineError.modelNotDownloaded }
+        guard let kit = modelLoader.value?.kit else {
+            throw SpeechEngineError.modelNotDownloaded
+        }
 
         let options = DecodingOptions(
             task: .transcribe,
@@ -377,10 +404,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
             throw SpeechEngineError.unsupportedLanguage(language)
         }
 
-        loadLock.lock()
-        let kit = whisperKit
-        loadLock.unlock()
-        guard let kit, let tokenizer = kit.tokenizer else {
+        guard let kit = modelLoader.value?.kit, let tokenizer = kit.tokenizer else {
             throw SpeechEngineError.modelNotDownloaded
         }
 
@@ -446,7 +470,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
 
 // MARK: - Sendable wrappers
 
-private final class StreamContinuationBox: @unchecked Sendable {
+private nonisolated final class StreamContinuationBox: @unchecked Sendable {
     private var continuation: AsyncStream<TranscriptionResult>.Continuation?
     private let lock = NSLock()
 
