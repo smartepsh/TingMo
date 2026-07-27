@@ -110,7 +110,11 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             return .ready
         }
 
-        guard pausePlayback() else {
+        let pauseAccepted = pausePlayback()
+        #if DEBUG
+        NSLog("[TingMo] MediaRemote pause accepted=\(pauseAccepted)")
+        #endif
+        guard pauseAccepted else {
             NSLog("[TingMo] MediaRemote pause command was rejected")
             return .unverified
         }
@@ -128,6 +132,11 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             Thread.sleep(forTimeInterval: retryDelay)
         }
         let confirmation = queryPlayback()
+        #if DEBUG
+        NSLog(
+            "[TingMo] MediaRemote pause confirmation: isPlaying=\(String(describing: confirmation.isPlaying)), pid=\(String(describing: confirmation.pid))"
+        )
+        #endif
         let pauseConfirmed = confirmation.isPlaying == false &&
             identitiesDoNotConflict(snapshot.pid, confirmation.pid)
         let result: BeginResult = pauseConfirmed ? .ready : .unverified
@@ -147,7 +156,11 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         // is needed only when the current session remains paused. When both
         // PIDs are available, a mismatch still protects a different player.
         guard snapshot.isPlaying == false else { return }
-        if !resumePlayback() {
+        let playAccepted = resumePlayback()
+        #if DEBUG
+        NSLog("[TingMo] MediaRemote play accepted=\(playAccepted)")
+        #endif
+        if !playAccepted {
             NSLog("[TingMo] MediaRemote play command was rejected")
         }
     }
@@ -155,13 +168,13 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     /// Playback state is authoritative for deciding whether to pause. PID is
     /// useful for identity checks when available, but is not a prerequisite.
     private func initialSnapshotWithRetry() -> PlaybackSnapshot? {
-        queryWithRetry { $0.isPlaying != nil }
+        queryWithRetry(label: "begin") { $0.isPlaying != nil }
     }
 
     /// Resume also requires a known playback state. Identity remains
     /// best-effort because MediaRemote may stop reporting PID after pausing.
     private func resumeSnapshotWithRetry() -> PlaybackSnapshot? {
-        queryWithRetry { $0.isPlaying != nil }
+        queryWithRetry(label: "resume") { $0.isPlaying != nil }
     }
 
     /// Missing identity is inconclusive rather than a conflict. Only two
@@ -172,10 +185,16 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     }
 
     private func queryWithRetry(
+        label: String,
         isConclusive: (PlaybackSnapshot) -> Bool
     ) -> PlaybackSnapshot? {
         for attempt in 0..<queryAttempts {
             let snapshot = queryPlayback()
+            #if DEBUG
+            NSLog(
+                "[TingMo] MediaRemote \(label) query \(attempt + 1)/\(queryAttempts): isPlaying=\(String(describing: snapshot.isPlaying)), pid=\(String(describing: snapshot.pid))"
+            )
+            #endif
             if isConclusive(snapshot) { return snapshot }
             if attempt + 1 < queryAttempts, retryDelay > 0 {
                 Thread.sleep(forTimeInterval: retryDelay)

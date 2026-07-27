@@ -40,27 +40,15 @@ nonisolated enum NowPlayingRemote {
         let pid: pid_t?
     }
 
-    /// Query playback and app identity in parallel. This method blocks its
-    /// caller for at most one query timeout and must therefore run away from
-    /// the main thread.
+    /// Query playback and app identity serially. MediaRemote is a private IPC
+    /// API and concurrent requests from the same process can interfere with
+    /// each other's callbacks. This runs off the main thread, so serializing
+    /// the calls does not block the UI.
     static func snapshot() -> Snapshot {
-        let group = DispatchGroup()
-        let box = SnapshotBox()
-
-        group.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            box.isPlaying = isPlaying()
-            group.leave()
-        }
-
-        group.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            box.pid = nowPlayingApplicationPID()
-            group.leave()
-        }
-
-        group.wait()
-        return Snapshot(isPlaying: box.isPlaying, pid: box.pid)
+        Snapshot(
+            isPlaying: isPlaying(),
+            pid: nowPlayingApplicationPID()
+        )
     }
 
     /// `true` if the active Now Playing app is currently playing, `false`
@@ -127,22 +115,6 @@ nonisolated enum NowPlayingRemote {
         var value: T? {
             get { lock.lock(); defer { lock.unlock() }; return stored }
             set { lock.lock(); defer { lock.unlock() }; stored = newValue }
-        }
-    }
-
-    private final class SnapshotBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var storedIsPlaying: Bool?
-        private var storedPID: pid_t?
-
-        var isPlaying: Bool? {
-            get { lock.lock(); defer { lock.unlock() }; return storedIsPlaying }
-            set { lock.lock(); defer { lock.unlock() }; storedIsPlaying = newValue }
-        }
-
-        var pid: pid_t? {
-            get { lock.lock(); defer { lock.unlock() }; return storedPID }
-            set { lock.lock(); defer { lock.unlock() }; storedPID = newValue }
         }
     }
 
