@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 
 /// Session-scoped media interruption for dictation.
@@ -42,6 +43,15 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     init(
         queryPlayback: @escaping @Sendable () -> PlaybackSnapshot = {
             let snapshot = NowPlayingRemote.snapshot()
+            if snapshot.isPlaying != true,
+               snapshot.pid == nil,
+               MediaPlaybackGuard.defaultOutputDeviceIsRunning()
+            {
+                #if DEBUG
+                NSLog("[TingMo] MediaRemote read unavailable; CoreAudio detected active output")
+                #endif
+                return PlaybackSnapshot(isPlaying: true, pid: nil)
+            }
             return PlaybackSnapshot(isPlaying: snapshot.isPlaying, pid: snapshot.pid)
         },
         pausePlayback: @escaping @Sendable () -> Bool = { NowPlayingRemote.pause() },
@@ -149,20 +159,23 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         defer { activeSession = nil }
         guard session.owesResume else { return }
 
+        // A missing PID usually means MediaRemote denied read access even
+        // though CoreAudio proved that output was active. The accepted pause
+        // command is the only reliable state we have, so pay its resume debt
+        // directly. Explicit play is idempotent if the user already resumed.
+        guard let pausedPID = session.pausedPID else {
+            sendResumeCommand()
+            return
+        }
+
         guard let snapshot = resumeSnapshotWithRetry() else { return }
-        guard identitiesDoNotConflict(session.pausedPID, snapshot.pid) else { return }
+        guard identitiesDoNotConflict(pausedPID, snapshot.pid) else { return }
 
         // The user may have resumed manually while recording. Explicit play
         // is needed only when the current session remains paused. When both
         // PIDs are available, a mismatch still protects a different player.
         guard snapshot.isPlaying == false else { return }
-        let playAccepted = resumePlayback()
-        #if DEBUG
-        NSLog("[TingMo] MediaRemote play accepted=\(playAccepted)")
-        #endif
-        if !playAccepted {
-            NSLog("[TingMo] MediaRemote play command was rejected")
-        }
+        sendResumeCommand()
     }
 
     /// Playback state is authoritative for deciding whether to pause. PID is
@@ -184,6 +197,16 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         return lhs == rhs
     }
 
+    private func sendResumeCommand() {
+        let playAccepted = resumePlayback()
+        #if DEBUG
+        NSLog("[TingMo] MediaRemote play accepted=\(playAccepted)")
+        #endif
+        if !playAccepted {
+            NSLog("[TingMo] MediaRemote play command was rejected")
+        }
+    }
+
     private func queryWithRetry(
         label: String,
         isConclusive: (PlaybackSnapshot) -> Bool
@@ -201,5 +224,42 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             }
         }
         return nil
+    }
+
+    /// Whether any process currently has an IO proc running on the default
+    /// output device. This public CoreAudio signal is used only when the
+    /// signed app is denied access to MediaRemote playback state.
+    private static func defaultOutputDeviceIsRunning() -> Bool {
+        var deviceID = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let deviceStatus = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &deviceID
+        )
+        guard deviceStatus == noErr, deviceID != kAudioObjectUnknown else {
+            return false
+        }
+
+        var isRunning: UInt32 = 0
+        size = UInt32(MemoryLayout<UInt32>.size)
+        address.mSelector = kAudioDevicePropertyDeviceIsRunningSomewhere
+        let runningStatus = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &size,
+            &isRunning
+        )
+        return runningStatus == noErr && isRunning != 0
     }
 }

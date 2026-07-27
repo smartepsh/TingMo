@@ -169,7 +169,7 @@ final class MediaPlaybackGuardTests: XCTestCase {
         XCTAssertEqual(spy.playCount, 1)
     }
 
-    func testUnknownResumeStateNeverSendsPlay() async {
+    func testUnknownResumeStateNeverSendsPlayWhenPausedApplicationWasKnown() async {
         let spy = Spy()
         spy.snapshot = .init(isPlaying: true, pid: 42)
         let guard_ = makeGuard(spy: spy)
@@ -180,6 +180,19 @@ final class MediaPlaybackGuardTests: XCTestCase {
         await guard_.endSession(id: sessionID)
 
         XCTAssertEqual(spy.playCount, 0)
+    }
+
+    func testPIDLessSessionPaysResumeDebtWithoutAnotherStateQuery() async {
+        let spy = Spy()
+        spy.snapshot = .init(isPlaying: true, pid: nil)
+        let guard_ = makeGuard(spy: spy)
+        let sessionID = UUID()
+
+        _ = await guard_.beginSession(id: sessionID)
+        spy.snapshot = .init(isPlaying: nil, pid: nil)
+        await guard_.endSession(id: sessionID)
+
+        XCTAssertEqual(spy.playCount, 1)
     }
 
     func testResumesWhenPIDBecomesUnavailableAfterPause() async {
