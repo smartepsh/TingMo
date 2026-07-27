@@ -5,25 +5,11 @@ struct PresetSettingsSection: View {
     @Bindable var instanceStore: LLMInstanceStore
     @Bindable var sttInstanceStore: STTInstanceStore
     @Bindable var engineRegistry: EngineRegistry
-    @State private var filterLanguages: Set<String> = []
 
     var body: some View {
         Section {
             TextField(String(localized: "Preset Name"), text: presetBinding(\.name))
                 .textFieldStyle(.roundedBorder)
-
-            // Language filter (UI only)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(localized: "Filter by language"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 12) {
-                    ForEach(LanguagePreference.availableLanguages) { lang in
-                        Toggle(lang.name, isOn: filterBinding(for: lang.code))
-                            .font(.caption)
-                    }
-                }
-            }
 
             // Speech Engine picker
             Picker(String(localized: "Speech Engine"), selection: speechEngineBinding) {
@@ -107,26 +93,15 @@ struct PresetSettingsSection: View {
     }
 
     private var whisperKitEngines: [any SpeechEngine] {
-        engineRegistry.engines.filter { engine in
-            guard engine is WhisperKitEngine else { return false }
-            if filterLanguages.isEmpty { return true }
-            return filterLanguages.allSatisfy { engine.supportsLanguage($0) }
-        }
+        engineRegistry.engines.filter { $0 is WhisperKitEngine }
     }
 
     private var readyWhisperKitEngines: [any SpeechEngine] {
         whisperKitEngines.filter { $0.info.isReady }
     }
 
-    private var filteredSTTInstances: [STTInstance] {
-        if filterLanguages.isEmpty { return sttInstanceStore.instances }
-        return sttInstanceStore.instances.filter { instance in
-            filterLanguages.allSatisfy { instance.provider.supportsLanguage($0) }
-        }
-    }
-
     private var readySTTInstances: [STTInstance] {
-        filteredSTTInstances.filter { sttInstanceStore.hasAPIKey(for: $0) }
+        sttInstanceStore.instances.filter { sttInstanceStore.hasAPIKey(for: $0) }
     }
 
     private var speechEngineBinding: Binding<String> {
@@ -135,19 +110,6 @@ struct PresetSettingsSection: View {
             set: { newValue in
                 presetStore.defaultPreset.speechEngineID = newValue
                 engineRegistry.setActiveEngine(newValue)
-            }
-        )
-    }
-
-    private func filterBinding(for code: String) -> Binding<Bool> {
-        Binding(
-            get: { filterLanguages.contains(code) },
-            set: { isSelected in
-                if isSelected {
-                    filterLanguages.insert(code)
-                } else {
-                    filterLanguages.remove(code)
-                }
             }
         )
     }

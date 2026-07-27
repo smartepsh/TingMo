@@ -211,9 +211,6 @@
     "Fetch available models from the server" : {
 
     },
-    "Filter by language" : {
-
-    },
     "Floating Window" : {
       "localizations" : {
         "zh-Hans" : {
