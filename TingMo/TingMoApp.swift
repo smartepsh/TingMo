@@ -249,6 +249,7 @@ struct TingMoApp: App {
                         statusIndicatorManager.audioLevel = 0.3
                         statusIndicatorManager.show()
                     case .transcribing:
+                        hotkeyManager.recordingDidEnd()
                         audioDeviceManager.isRecording = false
                         statusIndicatorManager.setProcessing(true)
                     case .idle:

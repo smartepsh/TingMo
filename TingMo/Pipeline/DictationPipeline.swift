@@ -12,6 +12,8 @@ import Observation
 @Observable
 @MainActor
 final class DictationPipeline {
+    private static let maximumRecordingDuration: Duration = .seconds(30 * 60)
+
     enum State: Equatable {
         case idle
         case preparing
@@ -64,6 +66,7 @@ final class DictationPipeline {
     private var storedTargetAppName: String?
     private var mediaSessionID: UUID?
     private var startTask: Task<Void, Never>?
+    private var recordingTimeoutTask: Task<Void, Never>?
     private var mediaCleanupTask: Task<Void, Never>?
 
     init(
@@ -159,6 +162,7 @@ final class DictationPipeline {
             try capture.start(preferredDeviceUID: preferredDeviceUID)
             startTask = nil
             state = .recording
+            scheduleRecordingTimeout()
 
             if contextSettings.screenshotOCREnabled {
                 storedOCRText = nil
@@ -186,6 +190,7 @@ final class DictationPipeline {
     /// then back to idle asynchronously.
     func stopAndTranscribe() {
         guard state == .recording else { return }
+        cancelRecordingTimeout()
 
         let sessionID = mediaSessionID
         mediaSessionID = nil
@@ -219,6 +224,7 @@ final class DictationPipeline {
         case .preparing:
             cancelPendingStart()
         case .recording:
+            cancelRecordingTimeout()
             ocrTask?.cancel()
             ocrTask = nil
             storedOCRText = nil
@@ -257,6 +263,27 @@ final class DictationPipeline {
             self.clearStoredContext()
             self.state = .idle
         }
+    }
+
+    private func scheduleRecordingTimeout() {
+        recordingTimeoutTask?.cancel()
+        recordingTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: Self.maximumRecordingDuration)
+            } catch {
+                return
+            }
+
+            guard let self, self.state == .recording else { return }
+            self.recordingTimeoutTask = nil
+            NSLog("[TingMo] Maximum recording duration reached; stopping after 30 minutes")
+            self.stopAndTranscribe()
+        }
+    }
+
+    private func cancelRecordingTimeout() {
+        recordingTimeoutTask?.cancel()
+        recordingTimeoutTask = nil
     }
 
     private func scheduleMediaCleanup(sessionID: UUID?, cancelled: Bool) {

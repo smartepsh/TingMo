@@ -94,6 +94,13 @@ final class HotkeyManager {
         removeTap()
     }
 
+    /// Keep hotkey mode in sync when recording ends outside a key-up event,
+    /// such as when the maximum recording duration is reached.
+    func recordingDidEnd() {
+        keyDownTime = nil
+        isToggleRecording = false
+    }
+
     private func reinstallTap() {
         removeTap()
         installTap()
