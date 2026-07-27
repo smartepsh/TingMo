@@ -81,6 +81,66 @@
     "Authentication failed — the API key is invalid." : {
 
     },
+    "Current version: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前版本：%1$@"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍后"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
+    "Unable to Check for Updates" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法检查更新"
+          }
+        }
+      }
+    },
+    "You are currently using TingMo %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前正在使用 TingMo %1$@。"
+          }
+        }
+      }
+    },
+    "Automatically check for updates" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动检查更新"
+          }
+        }
+      }
+    },
     "Back" : {
       "localizations" : {
         "zh-Hans" : {
@@ -98,6 +158,29 @@
 
     },
     "Cancel Recording Start" : {
+
+    },
+    "Check for Updates…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查更新…"
+          }
+        }
+      }
+    },
+    "Checking for updates…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查更新…"
+          }
+        }
+      }
+    },
+    "Checking for Updates…" : {
 
     },
     "Clipboard" : {
@@ -126,6 +209,16 @@
     },
     "Current endpoint: %@" : {
 
+    },
+    "Current Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前版本"
+          }
+        }
+      }
     },
     "Custom…" : {
 
@@ -167,11 +260,61 @@
     "Download timed out." : {
 
     },
+    "Download TingMo %@…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载 TingMo %1$@…"
+          }
+        }
+      }
+    },
+    "Download Update" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载更新"
+          }
+        }
+      }
+    },
+    "Download Update…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载更新…"
+          }
+        }
+      }
+    },
     "Downloaded" : {
 
     },
     "Downloading" : {
 
+    },
+    "Downloading update…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载更新…"
+          }
+        }
+      }
+    },
+    "Downloading Update…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载更新…"
+          }
+        }
+      }
     },
     "Drop a WhisperKit model folder here" : {
 
@@ -246,6 +389,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开始使用"
+          }
+        }
+      }
+    },
+    "GitHub returned an error (HTTP %lld)." : {
+
+    },
+    "GitHub returned an invalid release response." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub 返回了无效的版本信息。"
           }
         }
       }
@@ -460,6 +616,16 @@
         }
       }
     },
+    "Open Installer Again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次打开安装器"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "localizations" : {
         "zh-Hans" : {
@@ -472,6 +638,16 @@
     },
     "Open System Settings" : {
 
+    },
+    "Open Update Installer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开更新安装器"
+          }
+        }
+      }
     },
     "Optional" : {
       "localizations" : {
@@ -774,6 +950,16 @@
         }
       }
     },
+    "Software Update" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件更新"
+          }
+        }
+      }
+    },
     "Speech Engine" : {
       "localizations" : {
         "zh-Hans" : {
@@ -842,12 +1028,32 @@
     "The base URL is not a valid URL." : {
 
     },
+    "The downloaded update failed its integrity check." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载的更新未通过完整性校验。"
+          }
+        }
+      }
+    },
     "The global hotkey will be ignored in these applications." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "在这些应用中将忽略全局快捷键。"
+          }
+        }
+      }
+    },
+    "The release does not contain a valid macOS installer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本不包含有效的 macOS 安装器。"
           }
         }
       }
@@ -867,11 +1073,51 @@
     "The server returned no models." : {
 
     },
+    "The update installer has been downloaded and opened." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新安装器已下载并打开。"
+          }
+        }
+      }
+    },
     "This model is active in your preset. Deleting it will set the Correction Engine to None." : {
 
     },
     "This provider is active in your preset. Deleting it will reset the Speech Engine." : {
 
+    },
+    "TingMo %@ is available." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TingMo %1$@ 现已可用。"
+          }
+        }
+      }
+    },
+    "TingMo checks the latest GitHub Release at most once per day. Updates are downloaded to your Downloads folder and opened for installation." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TingMo 每天最多检查一次最新的 GitHub Release。更新会下载到“下载”文件夹并打开以供安装。"
+          }
+        }
+      }
+    },
+    "TingMo is up to date." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TingMo 已是最新版本。"
+          }
+        }
+      }
     },
     "TingMo 听墨" : {
       "extractionState" : "stale",
@@ -905,6 +1151,16 @@
     },
     "Untitled" : {
 
+    },
+    "View Release Notes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看发布说明"
+          }
+        }
+      }
     },
     "Welcome to TingMo" : {
       "localizations" : {

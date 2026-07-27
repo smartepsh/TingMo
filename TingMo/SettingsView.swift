@@ -13,6 +13,7 @@ struct SettingsView: View {
     @Bindable var llmInstanceStore: LLMInstanceStore
     @Bindable var sttInstanceStore: STTInstanceStore
     @Bindable var contextSettings: ContextSettingsStore
+    @Bindable var updateManager: UpdateManager
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedPage: SettingsPage = .presets
@@ -164,6 +165,8 @@ struct SettingsView: View {
             } header: {
                 Text("Permissions")
             }
+
+            SoftwareUpdateSettingsSection(updateManager: updateManager)
 
             Section {
                 Button(String(localized: "Run Setup Wizard Again")) {

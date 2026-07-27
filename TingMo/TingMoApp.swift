@@ -16,6 +16,7 @@ struct TingMoApp: App {
     @State private var llmInstanceStore: LLMInstanceStore
     @State private var sttInstanceStore: STTInstanceStore
     @State private var contextSettings: ContextSettingsStore
+    @State private var updateManager: UpdateManager
     @State private var pipeline: DictationPipeline
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
@@ -62,6 +63,7 @@ struct TingMoApp: App {
         let sttInstanceStore = STTInstanceStore()
         let presetStore = ConfigPresetStore(defaultLLMInstanceID: defaultLLMInstanceID)
         let contextSettings = ContextSettingsStore()
+        let updateManager = UpdateManager()
         let registry = EngineRegistry(
             downloadSource: downloadSource,
             importedModelStore: importedStore,
@@ -88,6 +90,7 @@ struct TingMoApp: App {
         _llmInstanceStore = State(initialValue: llmInstanceStore)
         _sttInstanceStore = State(initialValue: sttInstanceStore)
         _contextSettings = State(initialValue: contextSettings)
+        _updateManager = State(initialValue: updateManager)
         _pipeline = State(initialValue: DictationPipeline(
             registry: registry,
             languagePreference: languagePreference,
@@ -208,6 +211,11 @@ struct TingMoApp: App {
             .keyboardShortcut(",", modifiers: .command)
             .disabled(pipeline.state == .recording || pipeline.state == .preparing)
 
+            Button(updateMenuTitle) {
+                performUpdateMenuAction()
+            }
+            .disabled(updateManager.isBusy)
+
             Divider()
 
             Button(String(localized: "Quit")) {
@@ -226,6 +234,7 @@ struct TingMoApp: App {
                     }
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
+                    Task { await updateManager.checkAutomaticallyIfNeeded() }
                 }
                 .onChange(of: audioDeviceManager.deviceDisconnectedDuringRecording) { _, disconnected in
                     guard disconnected else { return }
@@ -278,7 +287,8 @@ struct TingMoApp: App {
                 presetStore: presetStore,
                 llmInstanceStore: llmInstanceStore,
                 sttInstanceStore: sttInstanceStore,
-                contextSettings: contextSettings
+                contextSettings: contextSettings,
+                updateManager: updateManager
             )
         }
         .defaultSize(width: 860, height: 700)
@@ -288,6 +298,93 @@ struct TingMoApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
+    }
+
+    // MARK: - Software update
+
+    private var updateMenuTitle: String {
+        switch updateManager.state {
+        case .updateAvailable:
+            if let version = updateManager.latestRelease?.version {
+                String(localized: "Download TingMo \(version.description)…")
+            } else {
+                String(localized: "Download Update…")
+            }
+        case .checking:
+            String(localized: "Checking for Updates…")
+        case .downloading:
+            String(localized: "Downloading Update…")
+        case .downloaded:
+            String(localized: "Open Update Installer")
+        default:
+            String(localized: "Check for Updates…")
+        }
+    }
+
+    private func performUpdateMenuAction() {
+        switch updateManager.state {
+        case .updateAvailable:
+            Task { await updateManager.downloadAvailableUpdate() }
+        case .downloaded:
+            updateManager.openDownloadedUpdate()
+        default:
+            Task { await checkForUpdatesAndPresentResult() }
+        }
+    }
+
+    private func checkForUpdatesAndPresentResult() async {
+        await updateManager.checkForUpdates()
+
+        switch updateManager.state {
+        case .upToDate:
+            presentUpdateAlert(
+                message: String(localized: "TingMo is up to date."),
+                informativeText: String(
+                    localized: "Current version: \(updateManager.currentVersionString)"
+                )
+            )
+        case .updateAvailable:
+            let version = updateManager.latestRelease?.version?.description ?? ""
+            let response = presentUpdateAlert(
+                message: String(localized: "TingMo \(version) is available."),
+                informativeText: String(
+                    localized: "You are currently using TingMo \(updateManager.currentVersionString)."
+                ),
+                primaryButtonTitle: String(localized: "Download Update"),
+                secondaryButtonTitle: String(localized: "Later")
+            )
+            if response == .alertFirstButtonReturn {
+                await updateManager.downloadAvailableUpdate()
+            }
+        case .failed(let message):
+            presentUpdateAlert(
+                message: String(localized: "Unable to Check for Updates"),
+                informativeText: message,
+                style: .warning
+            )
+        default:
+            break
+        }
+    }
+
+    @discardableResult
+    private func presentUpdateAlert(
+        message: String,
+        informativeText: String,
+        style: NSAlert.Style = .informational,
+        primaryButtonTitle: String = String(localized: "OK"),
+        secondaryButtonTitle: String? = nil
+    ) -> NSApplication.ModalResponse {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = style
+        alert.messageText = message
+        alert.informativeText = informativeText
+        alert.addButton(withTitle: primaryButtonTitle)
+        if let secondaryButtonTitle {
+            alert.addButton(withTitle: secondaryButtonTitle)
+        }
+        return alert.runModal()
     }
 
     // MARK: - Recording control

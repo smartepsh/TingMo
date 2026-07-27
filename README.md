@@ -15,6 +15,7 @@ TingMo lives in your menu bar and provides pluggable speech-to-text with optiona
 - **Global hotkey** — Short press to toggle, long press to record, ESC to cancel
 - **Multiple status UIs** — Notch, top-center, or floating window display modes
 - **CLI & AppleScript** — Automate with `tingmo start/stop/toggle` or Shortcuts
+- **Automatic update checks** — Checks GitHub Releases daily and downloads newer signed DMGs on demand
 
 ## Requirements
 
