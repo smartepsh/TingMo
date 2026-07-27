@@ -37,8 +37,12 @@ final class StatusIndicatorManager {
 
     func show() {
         errorHideTask?.cancel()
+        let wasShowingError = errorMessage != nil
         errorMessage = nil
-        guard !isShowing else { return }
+        guard !isShowing else {
+            if wasShowingError { recreatePanel() }
+            return
+        }
         isShowing = true
         createPanel()
     }
@@ -70,10 +74,13 @@ final class StatusIndicatorManager {
         errorHideTask?.cancel()
         isProcessing = false
         audioLevel = 0
-        if !isShowing { show() }
-        // show() resets stale errors while creating the panel, so assign the
-        // new message afterwards to ensure a hidden indicator displays it.
         errorMessage = message
+        if isShowing {
+            recreatePanel()
+        } else {
+            isShowing = true
+            createPanel()
+        }
 
         errorHideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.errorDisplayDuration))
@@ -119,45 +126,80 @@ final class StatusIndicatorManager {
         panel.orderFrontRegardless()
     }
 
+    private func recreatePanel() {
+        panel?.orderOut(nil)
+        panel = nil
+        createPanel()
+    }
+
     private func panelFrame(for mode: StatusIndicatorMode, on screen: NSScreen) -> NSRect {
         let screenFrame = screen.visibleFrame
         let screenFullFrame = screen.frame
 
         switch mode {
         case .notch:
-            let ext = Self.notchSideExtension
-
             if let leftArea = screen.auxiliaryTopLeftArea,
                let rightArea = screen.auxiliaryTopRightArea {
                 let height = leftArea.height
                 let notchLeftEdge = leftArea.origin.x + leftArea.width
                 let notchRightEdge = rightArea.origin.x
-                let x = notchLeftEdge - ext
-                let totalWidth = (notchRightEdge - notchLeftEdge) + ext * 2
+                let baseWidth = (notchRightEdge - notchLeftEdge) + Self.notchSideExtension * 2
+                let width = preferredPanelWidth(
+                    defaultWidth: baseWidth,
+                    fontSize: 11,
+                    on: screen
+                )
+                let centerX = (notchLeftEdge + notchRightEdge) / 2
+                let x = centeredOriginX(centerX: centerX, width: width, in: screenFullFrame)
                 let y = screenFullFrame.maxY - height
-                return NSRect(x: x, y: y, width: totalWidth, height: height)
+                return NSRect(x: x, y: y, width: width, height: height)
             }
-            // Fallback for screens without notch
+
+            // Fallback for screens without notch.
             let height: CGFloat = 32
-            let width: CGFloat = 200
-            let x = screenFullFrame.midX - width / 2
+            let width = preferredPanelWidth(defaultWidth: 200, fontSize: 11, on: screen)
+            let x = centeredOriginX(centerX: screenFullFrame.midX, width: width, in: screenFullFrame)
             let y = screenFullFrame.maxY - height
             return NSRect(x: x, y: y, width: width, height: height)
 
         case .topCenter:
-            let width: CGFloat = 240
+            let width = preferredPanelWidth(defaultWidth: 240, fontSize: 12, on: screen)
             let height: CGFloat = 36
-            let x = screenFrame.midX - width / 2
+            let x = centeredOriginX(centerX: screenFrame.midX, width: width, in: screenFrame)
             let y = screenFrame.maxY - height - 4
             return NSRect(x: x, y: y, width: width, height: height)
 
         case .floatingWindow:
-            let width: CGFloat = 320
+            let width = preferredPanelWidth(defaultWidth: 320, fontSize: 13, on: screen)
             let height: CGFloat = 80
-            let x = screenFrame.midX - width / 2
+            let x = centeredOriginX(centerX: screenFrame.midX, width: width, in: screenFrame)
             let y = screenFrame.maxY - height - 60
             return NSRect(x: x, y: y, width: width, height: height)
         }
+    }
+
+    private func preferredPanelWidth(
+        defaultWidth: CGFloat,
+        fontSize: CGFloat,
+        on screen: NSScreen
+    ) -> CGFloat {
+        guard let errorMessage else { return defaultWidth }
+
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let textWidth = (errorMessage as NSString).size(withAttributes: [.font: font]).width
+        // Room for the warning icon, spacing, and horizontal padding.
+        let desiredWidth = ceil(textWidth) + 56
+        let availableWidth = max(defaultWidth, screen.visibleFrame.width - 24)
+        let maximumWidth = min(720, availableWidth)
+        return min(max(defaultWidth, desiredWidth), maximumWidth)
+    }
+
+    private func centeredOriginX(centerX: CGFloat, width: CGFloat, in frame: NSRect) -> CGFloat {
+        let margin: CGFloat = 8
+        return min(
+            max(centerX - width / 2, frame.minX + margin),
+            frame.maxX - width - margin
+        )
     }
 
 

@@ -30,7 +30,7 @@ final class DictationPipeline {
             switch self {
             case .notReady(let reason): reason
             case .modelPreparing(let name):
-                "Speech model '\(name)' is still preparing. Please try again shortly."
+                "Preparing '\(name)'… Try again shortly."
             case .modelPreparationFailed(let name, let reason):
                 "Speech model '\(name)' failed to prepare: \(reason). Retrying now."
             case .alreadyRunning: "Dictation is already running."

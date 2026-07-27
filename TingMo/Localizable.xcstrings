@@ -497,6 +497,9 @@
         }
       }
     },
+    "Preparing Speech Model…" : {
+
+    },
     "Preset Name" : {
 
     },
@@ -825,6 +828,9 @@
       }
     },
     "The selected item is not a valid WhisperKit model folder." : {
+
+    },
+    "The selected speech engine is unavailable." : {
 
     },
     "The server rejected the API key." : {

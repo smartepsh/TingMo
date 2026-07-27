@@ -28,6 +28,21 @@ struct TingMoApp: App {
         return image
     }()
 
+    private static let menuBarIconPreparing: NSImage = {
+        let source = NSImage(named: "MenuBarIcon") ?? NSImage()
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            source.draw(in: rect)
+            NSColor.systemYellow.setFill()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        // A template image would be recolored by the menu bar and lose the
+        // yellow preparation state.
+        image.isTemplate = false
+        return image
+    }()
+
     private static let menuBarIconRecording: NSImage = {
         let image = NSImage(named: "MenuBarIconRecording") ?? NSImage()
         image.isTemplate = false
@@ -85,8 +100,14 @@ struct TingMoApp: App {
     /// Menu icon should only show the recording variant while actively
     /// capturing audio; during transcribing we revert to idle so the user
     /// doesn't think the mic is still live.
-    private var showRecordingIcon: Bool {
-        pipeline.state == .recording
+    private var currentMenuBarIcon: NSImage {
+        if pipeline.state == .recording {
+            return Self.menuBarIconRecording
+        }
+        if isSelectedEnginePreparing {
+            return Self.menuBarIconPreparing
+        }
+        return Self.menuBarIcon
     }
 
     private var statusText: String {
@@ -191,7 +212,7 @@ struct TingMoApp: App {
             }
             .keyboardShortcut("q")
         } label: {
-            Image(nsImage: showRecordingIcon ? Self.menuBarIconRecording : Self.menuBarIcon)
+            Image(nsImage: currentMenuBarIcon)
                 .onAppear {
                     // Trigger the system's Accessibility prompt on first launch
                     // so the user actually sees a dialog offering to open
