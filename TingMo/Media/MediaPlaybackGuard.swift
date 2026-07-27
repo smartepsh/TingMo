@@ -1,11 +1,19 @@
-import CoreAudio
 import Foundation
 
 /// Session-scoped media interruption for dictation.
 ///
-/// All blocking MediaRemote queries run on a dedicated serial queue, never on
-/// the main thread. Commands are explicit pause/play operations; this class
+/// All blocking Now Playing queries run on a dedicated serial queue, never on
+/// the main thread — each one spawns a helper subprocess (see
+/// `NowPlayingRemote`). Commands are explicit pause/play operations; this class
 /// deliberately never emits a hardware-key toggle.
+///
+/// Playback state is read through the perl adapter rather than guessed from
+/// CoreAudio. A previous revision fell back to
+/// `kAudioDevicePropertyDeviceIsRunningSomewhere` when MediaRemote reads were
+/// refused, which was wrong in two measured ways: it stays `true` for ~2–5s
+/// after a pause (so it could never confirm one), and it reports *no* running
+/// device at all while audio is AirPlaying to a HomePod, because that audio
+/// never traverses the local output chain.
 nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     struct PlaybackSnapshot: Equatable, Sendable {
         var isPlaying: Bool?
@@ -43,21 +51,17 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     init(
         queryPlayback: @escaping @Sendable () -> PlaybackSnapshot = {
             let snapshot = NowPlayingRemote.snapshot()
-            if snapshot.isPlaying != true,
-               snapshot.pid == nil,
-               MediaPlaybackGuard.defaultOutputDeviceIsRunning()
-            {
-                #if DEBUG
-                NSLog("[TingMo] MediaRemote read unavailable; CoreAudio detected active output")
-                #endif
-                return PlaybackSnapshot(isPlaying: true, pid: nil)
-            }
             return PlaybackSnapshot(isPlaying: snapshot.isPlaying, pid: snapshot.pid)
         },
         pausePlayback: @escaping @Sendable () -> Bool = { NowPlayingRemote.pause() },
         resumePlayback: @escaping @Sendable () -> Bool = { NowPlayingRemote.play() },
-        retryDelay: TimeInterval = 0.025,
-        queryAttempts: Int = 2
+        // A query is now a ~170 ms perl round-trip rather than a few-ms IPC
+        // call, so retrying is expensive and sits directly on the recording
+        // start path. The adapter either answers or the session has no Now
+        // Playing app; a second attempt was not observed to change either.
+        // Tests still inject retries to cover the unknown-state path.
+        retryDelay: TimeInterval = 0,
+        queryAttempts: Int = 1
     ) {
         self.queryPlayback = queryPlayback
         self.pausePlayback = pausePlayback
@@ -67,9 +71,10 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
     }
 
     /// Inspect the current Now Playing session and pause it when playback is
-    /// confirmed. Application identity is best-effort: MediaRemote can expose
-    /// a valid Now Playing session while withholding or timing out its PID.
-    /// Unknown playback state still fails open without sending a command.
+    /// confirmed. The adapter reports playback state and PID from a single
+    /// read, so both normally arrive together; identity is still treated as
+    /// best-effort so that a session without one is usable rather than fatal.
+    /// Unknown playback state fails open without sending a command.
     func beginSession(id: UUID) async -> BeginResult {
         await withCheckedContinuation { continuation in
             operationQueue.async { [self] in
@@ -135,12 +140,9 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         activeSession?.pausedPID = snapshot.pid
         activeSession?.owesResume = true
 
-        // Give mediaremoted a brief opportunity to apply the command, then
-        // confirm once. Together with the initial retry this keeps worst-case
-        // recording preparation near 500 ms.
-        if retryDelay > 0 {
-            Thread.sleep(forTimeInterval: retryDelay)
-        }
+        // Confirm once. No settling delay is needed: a query costs ~170 ms of
+        // subprocess round-trip on its own, and pause was measured to already
+        // be reflected by the time the first read answers.
         let confirmation = queryPlayback()
         #if DEBUG
         NSLog(
@@ -224,42 +226,5 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
             }
         }
         return nil
-    }
-
-    /// Whether any process currently has an IO proc running on the default
-    /// output device. This public CoreAudio signal is used only when the
-    /// signed app is denied access to MediaRemote playback state.
-    private static func defaultOutputDeviceIsRunning() -> Bool {
-        var deviceID = AudioDeviceID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let deviceStatus = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            0,
-            nil,
-            &size,
-            &deviceID
-        )
-        guard deviceStatus == noErr, deviceID != kAudioObjectUnknown else {
-            return false
-        }
-
-        var isRunning: UInt32 = 0
-        size = UInt32(MemoryLayout<UInt32>.size)
-        address.mSelector = kAudioDevicePropertyDeviceIsRunningSomewhere
-        let runningStatus = AudioObjectGetPropertyData(
-            deviceID,
-            &address,
-            0,
-            nil,
-            &size,
-            &isRunning
-        )
-        return runningStatus == noErr && isRunning != 0
     }
 }

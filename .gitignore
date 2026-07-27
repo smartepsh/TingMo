@@ -12,6 +12,9 @@ xcuserdata/
 build/
 DerivedData/
 
+# Code coverage output from `xcodebuild test`
+*.profraw
+
 # Local release secrets
 scripts/.env.release
 

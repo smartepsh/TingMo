@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		76A0D9802F9A2839000B4EBB /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 76A0D97F2F9A2839000B4EBB /* WhisperKit */; };
+		76B1E0012FC0000100AA0001 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = 76B1E0002FC0000100AA0001 /* MediaRemoteAdapter */; };
+		76B1E0032FC0000100AA0001 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 76B1E0002FC0000100AA0001 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +48,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				76A0D9802F9A2839000B4EBB /* WhisperKit in Frameworks */,
+				76B1E0012FC0000100AA0001 /* MediaRemoteAdapter in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,6 +60,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		76B1E0022FC0000100AA0001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				76B1E0032FC0000100AA0001 /* MediaRemoteAdapter in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXGroup section */
 		762D97B32F683D3500FF0133 = {
@@ -111,6 +128,7 @@
 				762D97B82F683D3500FF0133 /* Sources */,
 				762D97B92F683D3500FF0133 /* Frameworks */,
 				762D97BA2F683D3500FF0133 /* Resources */,
+				76B1E0022FC0000100AA0001 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -122,6 +140,7 @@
 			name = TingMo;
 			packageProductDependencies = (
 				76A0D97F2F9A2839000B4EBB /* WhisperKit */,
+				76B1E0002FC0000100AA0001 /* MediaRemoteAdapter */,
 			);
 			productName = TingMo;
 			productReference = 762D97BC2F683D3500FF0133 /* TingMo.app */;
@@ -181,6 +200,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				76A0D97D2F9A230A000B4EBB /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				76B1DFFF2FC0000100AA0001 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 762D97BD2F683D3500FF0133 /* Products */;
@@ -529,6 +549,14 @@
 				kind = branch;
 			};
 		};
+		76B1DFFF2FC0000100AA0001 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ejbills/mediaremote-adapter";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -536,6 +564,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 76A0D97D2F9A230A000B4EBB /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		76B1E0002FC0000100AA0001 /* MediaRemoteAdapter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 76B1DFFF2FC0000100AA0001 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */;
+			productName = MediaRemoteAdapter;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

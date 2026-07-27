@@ -58,12 +58,13 @@ final class MediaPlaybackGuardTests: XCTestCase {
         }
     }
 
-    private func makeGuard(spy: Spy) -> MediaPlaybackGuard {
+    private func makeGuard(spy: Spy, queryAttempts: Int = 1) -> MediaPlaybackGuard {
         MediaPlaybackGuard(
             queryPlayback: { spy.query() },
             pausePlayback: { spy.pause() },
             resumePlayback: { spy.play() },
-            retryDelay: 0
+            retryDelay: 0,
+            queryAttempts: queryAttempts
         )
     }
 
@@ -125,7 +126,7 @@ final class MediaPlaybackGuardTests: XCTestCase {
     func testUnknownPlaybackStateRetriesThenContinuesWithoutCommands() async {
         let spy = Spy()
         spy.snapshot = .init(isPlaying: nil, pid: nil)
-        let guard_ = makeGuard(spy: spy)
+        let guard_ = makeGuard(spy: spy, queryAttempts: 2)
         let sessionID = UUID()
 
         let result = await guard_.beginSession(id: sessionID)
@@ -244,6 +245,25 @@ final class MediaPlaybackGuardTests: XCTestCase {
         await guard_.endSession(id: sessionID)
         await guard_.endSession(id: sessionID)
 
+        XCTAssertEqual(spy.playCount, 1)
+    }
+
+    /// AirPlay regression guard. Audio routed to a HomePod never runs a local
+    /// CoreAudio output device, so an earlier revision saw "nothing playing"
+    /// and skipped the pause. Playback state now comes from the Now Playing
+    /// session itself, which stays valid while AirPlaying, so a playing
+    /// session must still be paused and resumed.
+    func testPlayingSessionIsHandledWhenNoLocalAudioDeviceIsRunning() async {
+        let spy = Spy()
+        spy.snapshot = .init(isPlaying: true, pid: 91_515)
+        let guard_ = makeGuard(spy: spy)
+        let sessionID = UUID()
+
+        let result = await guard_.beginSession(id: sessionID)
+        await guard_.endSession(id: sessionID)
+
+        XCTAssertEqual(result, .ready)
+        XCTAssertEqual(spy.pauseCount, 1)
         XCTAssertEqual(spy.playCount, 1)
     }
 

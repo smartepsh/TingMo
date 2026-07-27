@@ -1,35 +1,38 @@
 import Darwin
 import Foundation
+import MediaRemoteAdapter
 
-/// Talks to the system Now Playing session through the private `MediaRemote`
-/// framework: reads whether the active Now Playing app is playing, which app
-/// it is, and sends it *explicit* pause/play commands.
+/// Talks to the system Now Playing session: reads whether the active session
+/// is playing, which app owns it, and sends explicit pause/play commands.
 ///
-/// Explicit commands are the whole point. The public alternative — posting
-/// the hardware play/pause media key — has two failure modes this class
-/// exists to eliminate:
+/// **Why reads go through `MediaRemoteAdapter` and not `MediaRemote` directly.**
+/// Since macOS 15.4 `mediaremoted` checks the identity of the calling process
+/// for *read* requests. A normal signed app is refused with
+/// `kMRMediaRemoteFrameworkErrorDomain Code=3 (Operation not permitted)`, but
+/// the refusal is silent at the API level: the callback still fires promptly
+/// with `isPlaying=false, pid=0`, which is indistinguishable from "nothing is
+/// playing". Verified on macOS 26.5.2 — the same code reports real state when
+/// hosted by an Apple platform binary and reports nothing when compiled into
+/// this app.
 ///
-/// - the key is a **toggle**, so firing it against a paused player *starts*
-///   the paused track;
-/// - when no Now Playing app exists, macOS (`rcd`) answers the key by
-///   **launching Apple Music**.
+/// The adapter restores read access by running the framework calls inside
+/// `/usr/bin/perl`, which *is* an Apple platform binary, and piping JSON back.
+/// There is no entitlement to request and no TCC prompt that grants this.
 ///
-/// `MRMediaRemoteSendCommand(kMRPause)` does neither: it is delivered to the
-/// current Now Playing session or dropped when there is none.
+/// Commands are unaffected: `MRMediaRemoteSendCommand` works from an ordinary
+/// signed process, so pause/play are still sent directly. The public
+/// alternative — posting the hardware play/pause media key — stays rejected:
+/// it is a *toggle* (it starts a paused player) and `rcd` answers it by
+/// **launching Apple Music** when no Now Playing session exists.
 ///
-/// Apple restricted parts of MediaRemote (notably now-playing *info*) behind
-/// private entitlements in macOS 15.4, but the three calls used here are
-/// verified working from an unentitled process on macOS 26.5. TingMo is not
-/// sandboxed (see `TingMo.entitlements`), so the framework can be loaded via
-/// `dlopen`. If any symbol is missing or a future macOS locks these calls
-/// down, every query returns `nil` ("unknown") and every command becomes a
-/// no-op — callers must treat that as "leave the media alone".
+/// If the adapter is unavailable or times out, every query returns `nil`
+/// ("unknown") and callers must treat that as "leave the media alone".
 nonisolated enum NowPlayingRemote {
-    /// How long a synchronous query waits for `mediaremoted` before giving
-    /// up and reporting "unknown". The IPC normally answers within a few
-    /// milliseconds; this cap only bounds the stall on recording start when
-    /// the daemon is unresponsive.
-    private static let queryTimeout: TimeInterval = 0.15
+    /// How long a query waits for the perl subprocess before reporting
+    /// "unknown". A healthy round-trip measured ~170 ms on an idle machine, so
+    /// this leaves roughly an order of magnitude of headroom for a loaded
+    /// system while still bounding the stall on recording start.
+    private static let queryTimeout: TimeInterval = 2.0
 
     private static let queue = DispatchQueue(label: "com.tingmo.mediaremote", qos: .userInitiated)
 
@@ -40,33 +43,55 @@ nonisolated enum NowPlayingRemote {
         let pid: pid_t?
     }
 
-    /// Query playback and app identity serially. MediaRemote is a private IPC
-    /// API and concurrent requests from the same process can interfere with
-    /// each other's callbacks. This runs off the main thread, so serializing
-    /// the calls does not block the UI.
+    /// Read playback state and app identity in a single subprocess round-trip.
+    ///
+    /// Both fields come from one `get` call, so unlike the previous two-query
+    /// design they always describe the same instant.
     static func snapshot() -> Snapshot {
-        Snapshot(
-            isPlaying: isPlaying(),
-            pid: nowPlayingApplicationPID()
-        )
+        guard let payload = trackInfoPayload() else {
+            return Snapshot(isPlaying: nil, pid: nil)
+        }
+        // No Now Playing session at all: the adapter answers with a null
+        // payload, which decodes to all-nil fields rather than an error.
+        guard let isPlaying = payload.isPlaying else {
+            return Snapshot(isPlaying: nil, pid: nil)
+        }
+        let pid = payload.PID.flatMap { $0 > 0 ? $0 : nil }
+        return Snapshot(isPlaying: isPlaying, pid: pid)
     }
 
-    /// `true` if the active Now Playing app is currently playing, `false`
-    /// if it is paused/stopped or no Now Playing app exists, `nil` if the
-    /// framework is unavailable or the query timed out.
-    static func isPlaying() -> Bool? {
-        guard let getIsPlaying else { return nil }
-        return syncQuery { done in getIsPlaying(queue) { done($0) } }
-    }
+    /// `true` if the active Now Playing app is currently playing, `false` if
+    /// it is paused/stopped, `nil` if the state could not be read.
+    static func isPlaying() -> Bool? { snapshot().isPlaying }
 
-    /// PID of the active Now Playing app, or `nil` when there is none (the
-    /// framework reports pid 0) or the query could not be answered.
-    static func nowPlayingApplicationPID() -> pid_t? {
-        guard let getPID else { return nil }
-        guard let pid = syncQuery({ done in getPID(queue) { done($0) } }), pid > 0 else {
+    /// PID of the active Now Playing app, or `nil` when there is none or the
+    /// query could not be answered.
+    static func nowPlayingApplicationPID() -> pid_t? { snapshot().pid }
+
+    /// One-shot read through the adapter, bounded by `queryTimeout`.
+    ///
+    /// `getTrackInfo` spawns `perl` and calls back on an internal queue; it has
+    /// no timeout of its own, so a wedged helper would otherwise hang the
+    /// recording path forever.
+    private static func trackInfoPayload() -> TrackInfo.Payload? {
+        let box = ResultBox<TrackInfo.Payload>()
+        let semaphore = DispatchSemaphore(value: 0)
+        // MediaController owns the subprocess plumbing; a fresh instance per
+        // query keeps this free of shared mutable state. The callback captures
+        // it so that a timed-out query cannot deallocate the controller while
+        // its perl child is still running and about to call back.
+        let controller = MediaController()
+        controller.getTrackInfo { [controller] info in
+            withExtendedLifetime(controller) {
+                box.value = info?.payload
+                semaphore.signal()
+            }
+        }
+        guard semaphore.wait(timeout: .now() + queryTimeout) == .success else {
+            NSLog("[TingMo] Now Playing query timed out after \(queryTimeout)s")
             return nil
         }
-        return pid
+        return box.value
     }
 
     // MARK: - Commands
@@ -80,6 +105,10 @@ nonisolated enum NowPlayingRemote {
 
     /// Ask the current Now Playing app to pause. Returns whether the system
     /// accepted the command; a no-op when no Now Playing app exists.
+    ///
+    /// Note that acceptance only means the command reached `mediaremoted` —
+    /// it is returned even when nothing was playing, so it must not be read
+    /// as proof that playback stopped.
     @discardableResult
     static func pause() -> Bool { send(.pause) }
 
@@ -95,20 +124,6 @@ nonisolated enum NowPlayingRemote {
 
     // MARK: - Blocking bridge
 
-    /// Runs an async MediaRemote query and waits (bounded) for its callback,
-    /// so callers on the recording path get a fresh answer instead of a
-    /// possibly-stale cache.
-    private static func syncQuery<T>(_ start: (@escaping (T) -> Void) -> Void) -> T? {
-        let box = ResultBox<T>()
-        let semaphore = DispatchSemaphore(value: 0)
-        start { value in
-            box.value = value
-            semaphore.signal()
-        }
-        guard semaphore.wait(timeout: .now() + queryTimeout) == .success else { return nil }
-        return box.value
-    }
-
     private final class ResultBox<T>: @unchecked Sendable {
         private let lock = NSLock()
         private var stored: T?
@@ -120,22 +135,15 @@ nonisolated enum NowPlayingRemote {
 
     // MARK: - Symbol loaders
 
-    private typealias GetBoolFn = @convention(c) (dispatch_queue_t, @escaping @convention(block) (Bool) -> Void) -> Void
-    private typealias GetPIDFn = @convention(c) (dispatch_queue_t, @escaping @convention(block) (Int32) -> Void) -> Void
     private typealias SendCommandFn = @convention(c) (Int32, CFDictionary?) -> Bool
 
-    /// Kept open for the lifetime of the process.
+    /// Kept open for the lifetime of the process. Only the *command* symbol is
+    /// loaded here; reads go through the adapter (see the type comment).
     private static let frameworkHandle: UnsafeMutableRawPointer? = dlopen(
         "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote",
         RTLD_NOW | RTLD_LOCAL
     )
 
-    private static let getIsPlaying: GetBoolFn? = loadFunction(
-        name: "MRMediaRemoteGetNowPlayingApplicationIsPlaying"
-    )
-    private static let getPID: GetPIDFn? = loadFunction(
-        name: "MRMediaRemoteGetNowPlayingApplicationPID"
-    )
     private static let sendCommand: SendCommandFn? = loadFunction(
         name: "MRMediaRemoteSendCommand"
     )
