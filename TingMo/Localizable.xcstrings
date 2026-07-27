@@ -536,7 +536,11 @@
         }
       }
     },
+    "Press your desired key combination, or Esc to cancel. fn on its own is supported; other modifiers need a regular key." : {
+
+    },
     "Press your desired key combination, or Esc to cancel. Modifier-only combos and standalone keys are both supported." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -818,6 +822,9 @@
 
     },
     "Test" : {
+
+    },
+    "That combination needs a regular key. Only fn works on its own." : {
 
     },
     "The base URL is not a valid URL." : {
