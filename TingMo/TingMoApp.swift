@@ -244,6 +244,7 @@ struct TingMoApp: App {
                         statusIndicatorManager.setProcessing(true)
                         statusIndicatorManager.show()
                     case .recording:
+                        audioDeviceManager.recordingDeviceUID = pipeline.activeDeviceUID
                         audioDeviceManager.isRecording = true
                         statusIndicatorManager.setProcessing(false)
                         statusIndicatorManager.audioLevel = 0.3

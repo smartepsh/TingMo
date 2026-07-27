@@ -38,6 +38,10 @@ final class AudioCapture {
     private(set) var audioLevel: Float = 0.0
     /// Running max peak across the whole capture session, for diagnostics.
     private(set) var sessionPeak: Float = 0.0
+
+    /// UID of the input device this session is actually bound to, resolved
+    /// after any fallback to the system default. Nil when not capturing.
+    private(set) var activeDeviceUID: String?
     private var totalFrames: Int = 0
 
     /// Start capture, optionally binding a specific input device by UID.
@@ -50,13 +54,21 @@ final class AudioCapture {
 
         let input = engine.inputNode
 
+        // Binding can silently fall back to the system default, so record the
+        // UID actually in use rather than the requested one — a disconnect
+        // check against the wrong device would either miss or misfire.
+        activeDeviceUID = nil
         if let uid = preferredDeviceUID,
            let deviceID = AudioDeviceEnumerator.deviceID(forUID: uid) {
             do {
                 try Self.setInputDevice(on: input, deviceID: deviceID)
+                activeDeviceUID = uid
             } catch {
                 NSLog("[TingMo] AudioCapture failed to bind device uid=\(uid): \(error); falling back to system default")
             }
+        }
+        if activeDeviceUID == nil {
+            activeDeviceUID = Self.systemDefaultInputUID()
         }
 
         // Prepare engine to sync internal state after device change
@@ -131,6 +143,7 @@ final class AudioCapture {
         converter = nil
         targetFormat = nil
         audioLevel = 0.0
+        activeDeviceUID = nil
 
         guard let url else { throw CaptureError.notRunning }
         return url
@@ -151,6 +164,7 @@ final class AudioCapture {
         converter = nil
         targetFormat = nil
         audioLevel = 0.0
+        activeDeviceUID = nil
     }
 
     // MARK: - Buffer handling
@@ -201,6 +215,26 @@ final class AudioCapture {
     }
 
     // MARK: - Device binding
+
+    /// UID of the current system default input device, if resolvable.
+    private static func systemDefaultInputUID() -> String? {
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &propertyAddress,
+            0, nil,
+            &dataSize,
+            &deviceID
+        )
+        guard status == noErr, deviceID != 0 else { return nil }
+        return AudioDeviceEnumerator.getDeviceUID(deviceID: deviceID)
+    }
 
     /// Bind the input node's underlying HAL audio unit to a specific device.
     /// Must be called before `engine.start()`.

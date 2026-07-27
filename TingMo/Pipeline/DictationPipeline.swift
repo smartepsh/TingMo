@@ -313,6 +313,11 @@ final class DictationPipeline {
         capture.audioLevel
     }
 
+    /// UID of the input device the active capture is bound to, if any.
+    var activeDeviceUID: String? {
+        capture.activeDeviceUID
+    }
+
     // MARK: - Transcription
 
     private func runTranscription(audioURL: URL) async {
@@ -447,6 +452,11 @@ final class DictationPipeline {
             await mediaCleanupTask.value
             self.mediaCleanupTask = nil
         }
+        // The OCR task is awaited by value, not cancelled — its result feeds
+        // correction context mid-transcription. Release the handle here, the
+        // single exit point for every path, so it does not outlive the session.
+        ocrTask = nil
+        storedOCRText = nil
         lastError = error
         state = .idle
     }

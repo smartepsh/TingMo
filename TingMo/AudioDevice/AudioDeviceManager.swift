@@ -9,7 +9,19 @@ final class AudioDeviceManager {
     var devices: [AudioDevice] = []
 
     /// Whether a recording session is active (set externally by the recording pipeline).
-    var isRecording = false
+    /// Clearing it drops the bound device so the two can never drift apart.
+    var isRecording = false {
+        didSet {
+            if !isRecording { recordingDeviceUID = nil }
+        }
+    }
+
+    /// UID of the device the active recording is bound to. Set alongside
+    /// `isRecording` so a disconnect only interrupts when it is *this* device
+    /// that went away — unrelated devices dropping off must not cut a session
+    /// short. Nil means the recording device is unknown, which is treated
+    /// conservatively as "any disconnect is relevant".
+    var recordingDeviceUID: String?
 
     /// Set when the active device disconnects during recording.
     var deviceDisconnectedDuringRecording = false
@@ -140,11 +152,17 @@ final class AudioDeviceManager {
         refreshOnlineStatus()
         let nowOnline = Set(devices.filter(\.isOnline).map(\.uid))
 
-        // Check if any device that was online went offline
+        // Only the device being recorded from matters. Other devices dropping
+        // off the system (displays, virtual devices, a second interface) must
+        // not interrupt an in-progress recording.
         let disconnected = previouslyOnline.subtracting(nowOnline)
-        if isRecording && !disconnected.isEmpty {
+        guard isRecording, !disconnected.isEmpty else { return }
+
+        let affectsRecording = recordingDeviceUID.map(disconnected.contains) ?? true
+        if affectsRecording {
             deviceDisconnectedDuringRecording = true
             isRecording = false
+            recordingDeviceUID = nil
         }
     }
 }
