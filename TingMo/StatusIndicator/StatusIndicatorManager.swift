@@ -187,10 +187,11 @@ final class StatusIndicatorManager {
 
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         let textWidth = (errorMessage as NSString).size(withAttributes: [.font: font]).width
-        // Room for the warning icon, spacing, and horizontal padding.
-        let desiredWidth = ceil(textWidth) + 56
-        let availableWidth = max(defaultWidth, screen.visibleFrame.width - 24)
-        let maximumWidth = min(720, availableWidth)
+        // Allow generous room for the warning icon, SwiftUI HStack spacing,
+        // and mode-specific padding. The screen edge is the only cap; normal
+        // messages should never be shortened to an arbitrary panel maximum.
+        let desiredWidth = ceil(textWidth) + 96
+        let maximumWidth = max(defaultWidth, screen.visibleFrame.width - 24)
         return min(max(defaultWidth, desiredWidth), maximumWidth)
     }
 

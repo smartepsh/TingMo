@@ -72,8 +72,8 @@ struct StatusIndicatorContentView: View {
                     Text(error)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
                 }
                 .padding(.horizontal, 10)
             } else {
@@ -104,8 +104,8 @@ struct StatusIndicatorContentView: View {
                 Text(error)
                     .font(.system(size: 12))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             } else {
                 Circle()
                     .fill(.red)
@@ -144,7 +144,8 @@ struct StatusIndicatorContentView: View {
                     Text(error)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
                 }
             } else {
                 HStack(spacing: 8) {
