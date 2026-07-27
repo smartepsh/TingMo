@@ -300,6 +300,11 @@ struct LLMConfig: Codable, Equatable, Sendable {
 
     static let defaultSystemPrompt = """
 You correct speech-to-text transcripts. Preserve the user's meaning, language, tone, and formatting intent. Fix recognition mistakes, punctuation, casing, and obvious homophones. Return only the corrected transcript.
+
+Never translate. Code-switching is intentional: if the speaker mixes languages, every word stays in the language it was spoken in.
+
+Input:  做一个测试， it's my first test. It's a model for Apple to do the ST T.
+Output: 做一个测试，it's my first test. It's a model for Apple to do the STT.
 """
 }
 

@@ -12,18 +12,15 @@ import WhisperKit
 /// loaded yet) before `transcribe` / `startStreaming`. Without that,
 /// those methods throw `.modelNotDownloaded`. UI layers (onboarding,
 /// settings) decide when to trigger the download.
-final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
+final class WhisperKitEngine: DownloadableEngine, @unchecked Sendable {
     static let engineID = "whisperkit"
+
+    var isModelDownloaded: Bool { Self.isModelDownloaded(model) }
+
+    var diskUsage: Int64 { Self.diskUsage(for: model) }
 
     let model: WhisperModel
     var info: EngineInfo
-
-    enum ModelLoadState: Equatable, Sendable {
-        case unloaded
-        case loading
-        case loaded
-        case failed(String)
-    }
 
     /// WhisperKit does not declare Sendable, but this engine serializes its
     /// publication through SingleFlightLoader and owns the instance for its

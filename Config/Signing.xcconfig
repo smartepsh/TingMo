@@ -11,4 +11,23 @@
 
 CODE_SIGN_STYLE = Automatic
 
+// --- sherpa-onnx (SenseVoice engine) ---
+//
+// Static libs built on demand from .deps/sherpa-onnx (see docs). They are not
+// committed: run scripts/build-sherpa-onnx.sh to produce them. The headers ship
+// inside the xcframework; onnxruntime is a separate archive that the build does
+// not merge in, so it is linked explicitly.
+//
+// The slice is arm64-only — the script builds for Apple Silicon alone, which
+// also pulls the arm64 onnxruntime rather than the twice-as-large universal one.
+SHERPA_DIR = $(SRCROOT)/.deps/sherpa-onnx/build-swift-macos
+SHERPA_LIB = $(SHERPA_DIR)/sherpa-onnx.xcframework/macos-arm64
+SHERPA_ORT = $(SHERPA_DIR)/_deps/onnxruntime-src/lib
+
+HEADER_SEARCH_PATHS = $(inherited) $(SHERPA_LIB)/Headers
+LIBRARY_SEARCH_PATHS = $(inherited) $(SHERPA_LIB) $(SHERPA_ORT)
+OTHER_LDFLAGS = $(inherited) -lsherpa-onnx -lonnxruntime -lc++
+
+SWIFT_OBJC_BRIDGING_HEADER = $(SRCROOT)/TingMo/SpeechEngine/Vendor/SherpaOnnx-Bridging-Header.h
+
 #include? "LocalSigning.xcconfig"

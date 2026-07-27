@@ -72,6 +72,14 @@ struct LocalProviderSection: View {
                 whisperKitModelRow(model: model)
             }
 
+            // SenseVoice — the sherpa-onnx runtime is linked in, only the model
+            // is fetched on demand.
+            Text("SenseVoice")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            senseVoiceModelRow()
+
             HStack {
                 Text(String(localized: "Total disk usage"))
                 Spacer()
@@ -193,6 +201,48 @@ struct LocalProviderSection: View {
             return "\(String(localized: "Installed")) · \(sizeStr)"
         }
         return "\(model.size) · \(String(localized: "Not installed"))"
+    }
+
+    @ViewBuilder
+    private func senseVoiceModelRow() -> some View {
+        let engineID = SenseVoiceEngine.engineID
+        let progress = engineRegistry.progress(for: engineID)
+        let error = engineRegistry.downloadError(for: engineID)
+        let downloaded = SenseVoiceEngine.isModelInstalled
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SenseVoice Small").fontWeight(.medium)
+                    Text(senseVoiceSubtitle(downloaded: downloaded, progress: progress, error: error))
+                        .font(.caption)
+                        .foregroundStyle(error == nil ? .secondary : Color.red)
+                }
+                Spacer()
+                whisperKitControls(
+                    engineID: engineID,
+                    downloaded: downloaded,
+                    progress: progress,
+                    hasError: error != nil
+                )
+            }
+            if let progress {
+                ProgressView(value: progress)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func senseVoiceSubtitle(downloaded: Bool, progress: Double?, error: String?) -> String {
+        if let error { return "\(String(localized: "Failed")): \(error)" }
+        if let progress {
+            return "\(String(localized: "Downloading")) \(Int(progress * 100))%"
+        }
+        if downloaded {
+            let bytes = SenseVoiceEngine().diskUsage
+            return "226 MB · \(String(localized: "Downloaded")) (\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)))"
+        }
+        return "226 MB · \(String(localized: "中文 / 粤语 / English / 日本語 / 한국어"))"
     }
 
     @ViewBuilder

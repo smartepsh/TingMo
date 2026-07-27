@@ -93,7 +93,7 @@ final class DictationPipeline {
         guard let engine = currentSpeechEngine() else {
             throw PipelineError.notReady(reason: "No speech engine selected.")
         }
-        if engine is WhisperKitEngine {
+        if engine is any DownloadableEngine {
             switch registry.preparationState(for: engine.info.id) {
             case .ready:
                 break
@@ -329,8 +329,8 @@ final class DictationPipeline {
         }
 
         do {
-            if let whisper = engine as? WhisperKitEngine {
-                try await whisper.loadModel()
+            if let downloadable = engine as? any DownloadableEngine {
+                try await downloadable.loadModel()
             }
 
             // Pass empty language for auto-detect (multi-language input)
@@ -415,6 +415,9 @@ final class DictationPipeline {
 
     private func correctIfNeeded(_ transcript: String) async -> (text: String, warning: Error?) {
         let preset = presetStore.defaultPreset
+        // `llmInstanceID` is the single source of truth for whether correction
+        // runs; the menu's first item clears it. (`ConfigPreset.correctionEnabled`
+        // exists in the stored model but is never read or surfaced in the UI.)
         guard preset.llmInstanceID != nil else { return (transcript, nil) }
         guard let llmConfig = llmInstanceStore.llmConfig(for: preset) else {
             return (transcript, PipelineError.notReady(reason: "No LLM correction instance selected."))
@@ -448,10 +451,16 @@ final class DictationPipeline {
     }
 
     private func finish(error: Error?) async {
-        if let mediaCleanupTask {
-            await mediaCleanupTask.value
-            self.mediaCleanupTask = nil
-        }
+        // Media teardown is not awaited: `endSession` makes a Now Playing query
+        // that costs a ~170 ms perl round-trip and is allowed up to 2 s, all of
+        // it after the text has already been injected. Awaiting it kept the
+        // pipeline out of `.idle` for that whole window, so a hotkey press right
+        // after the text appeared was dropped and recording seemed unresponsive.
+        //
+        // Letting it run on is safe: `MediaPlaybackGuard` serializes on its own
+        // queue and ignores a session that is no longer active, so a late
+        // teardown cannot disturb a session started in the meantime.
+        mediaCleanupTask = nil
         // The OCR task is awaited by value, not cancelled — its result feeds
         // correction context mid-transcription. Release the handle here, the
         // single exit point for every path, so it does not outlive the session.

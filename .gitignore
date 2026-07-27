@@ -12,6 +12,10 @@ xcuserdata/
 build/
 DerivedData/
 
+# Vendored third-party sources built locally (sherpa-onnx xcframework).
+# Sources are cloned and built on demand; see docs for the build step.
+.deps/
+
 # Code coverage output from `xcodebuild test`
 *.profraw
 

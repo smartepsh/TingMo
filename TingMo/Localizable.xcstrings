@@ -167,6 +167,12 @@
     "Download timed out." : {
 
     },
+    "Downloaded" : {
+
+    },
+    "Downloading" : {
+
+    },
     "Drop a WhisperKit model folder here" : {
 
     },
@@ -702,6 +708,12 @@
     "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
 
     },
+    "SenseVoice" : {
+
+    },
+    "SenseVoice Small" : {
+
+    },
     "Server error (%lld)%@" : {
       "localizations" : {
         "en" : {
@@ -939,6 +951,9 @@
           }
         }
       }
+    },
+    "中文 / 粤语 / English / 日本語 / 한국어" : {
+
     }
   },
   "version" : "1.0"

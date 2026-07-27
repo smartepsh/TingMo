@@ -92,6 +92,10 @@ final class EngineRegistry {
         // Remote engines from STTInstanceStore
         registerRemoteSTTEngines()
 
+        // SenseVoice — zh/yue/en/ja/ko, CPU via sherpa-onnx. Registered
+        // unconditionally; `isReady` reflects whether the model is installed.
+        register(SenseVoiceEngine())
+
         // Parakeet — English-only, CoreML
         register(ParakeetEngine(isReady: false))
     }
@@ -159,12 +163,12 @@ final class EngineRegistry {
         guard let engine = engine(id: engineID) else {
             return .failed(String(localized: "The selected speech engine is unavailable."))
         }
-        guard let whisper = engine as? WhisperKitEngine else { return .ready }
+        guard let downloadable = engine as? any DownloadableEngine else { return .ready }
         if loadingEngineIDs.contains(engineID) { return .preparing }
         if let message = preparationErrors[engineID] { return .failed(message) }
-        guard whisper.info.isReady else { return .notDownloaded }
+        guard downloadable.info.isReady else { return .notDownloaded }
 
-        return switch whisper.modelLoadState {
+        return switch downloadable.modelLoadState {
         case .unloaded: .unloaded
         case .loading: .preparing
         case .loaded: .ready
@@ -177,9 +181,9 @@ final class EngineRegistry {
     /// effect. Calls are safe to repeat because WhisperKitEngine is
     /// single-flight.
     func prepareEngine(_ engineID: String, downloadIfNeeded: Bool = false) {
-        guard let whisper = engine(id: engineID) as? WhisperKitEngine else { return }
-        guard whisper.info.isReady || downloadIfNeeded else { return }
-        guard !whisper.isModelLoaded else {
+        guard let downloadable = engine(id: engineID) as? any DownloadableEngine else { return }
+        guard downloadable.info.isReady || downloadIfNeeded else { return }
+        guard !downloadable.isModelLoaded else {
             loadingEngineIDs.remove(engineID)
             preparationErrors[engineID] = nil
             return
@@ -189,14 +193,14 @@ final class EngineRegistry {
         loadingEngineIDs.insert(engineID)
         preparationErrors[engineID] = nil
         let endpoint = downloadSource.effectiveEndpoint
-        let needsDownload = !whisper.info.isReady
+        let needsDownload = !downloadable.info.isReady
         Task.detached { [weak self] in
             let failureMessage: String?
             do {
                 if needsDownload {
-                    try await whisper.downloadModel(endpoint: endpoint)
+                    try await downloadable.downloadModel(endpoint: endpoint, progress: nil)
                 }
-                try await whisper.loadModel()
+                try await downloadable.loadModel()
                 failureMessage = nil
             } catch {
                 failureMessage = error.localizedDescription
@@ -222,9 +226,9 @@ final class EngineRegistry {
     @MainActor
     func downloadModel(engineID: String) {
         guard let engine = engines.first(where: { $0.info.id == engineID }) else { return }
-        guard let whisper = engine as? WhisperKitEngine else { return }
+        guard let downloadable = engine as? any DownloadableEngine else { return }
         guard downloadProgress[engineID] == nil else { return }
-        if whisper.info.isReady { return }
+        if downloadable.info.isReady { return }
 
         downloadProgress[engineID] = 0
         downloadErrors[engineID] = nil
@@ -240,7 +244,7 @@ final class EngineRegistry {
                 }
             }
             do {
-                try await whisper.downloadModel(endpoint: endpoint) { fraction in
+                try await downloadable.downloadModel(endpoint: endpoint) { fraction in
                     Task { @MainActor [weak self] in
                         self?.downloadProgress[engineID] = fraction
                     }
@@ -274,7 +278,7 @@ final class EngineRegistry {
     /// and refreshes the engine's `isReady` flag.
     @discardableResult
     func deleteDownloadedModel(engineID: String) -> Bool {
-        guard let engine = engines.first(where: { $0.info.id == engineID }) as? WhisperKitEngine else {
+        guard let engine = engines.first(where: { $0.info.id == engineID }) as? any DownloadableEngine else {
             return false
         }
         let result = engine.deleteLocalFiles()
