@@ -1,0 +1,46 @@
+name: Warm sherpa-onnx cache
+
+# Builds the sherpa-onnx xcframework on main so the release workflow can reuse
+# it. A run reads caches from its own ref and from the default branch, nothing
+# else — and releases run on a tag, so a cache saved by one release is invisible
+# to the next. Writing it here, on main, is what makes it visible to all of them.
+#
+# The cache key must stay identical to the one in release.yml; they are matched
+# by exact string, so changing one without the other silently costs a ~10 minute
+# rebuild on every release.
+on:
+  push:
+    branches: [main]
+    # Nothing else affects the artefacts, and the build is expensive.
+    paths: ['scripts/build-sherpa-onnx.sh']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    # Must match release.yml: these are arm64 C++ artefacts, and the key encodes
+    # the image, so a different runner would populate a cache nothing reads.
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache sherpa-onnx xcframework
+        id: sherpa-cache
+        uses: actions/cache@v6
+        with:
+          path: .deps
+          key: sherpa-onnx-macos-26-arm64-${{ hashFiles('scripts/build-sherpa-onnx.sh') }}
+
+      # No restore-keys here on purpose: a prefix match would restore a stale
+      # .deps and leave the build with nothing to do, so no cache would be saved
+      # under the new key — exactly the cache this job exists to produce.
+      #
+      # Unconditional for the same reason as in release.yml: the script returns
+      # early when the xcframework is already present, so the cache-hit path
+      # costs seconds rather than a rebuild.
+      - name: Build sherpa-onnx
+        run: ./scripts/build-sherpa-onnx.sh

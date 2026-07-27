@@ -29,7 +29,7 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # release.sh derives the build number from `git rev-list --count`,
           # which needs the full history, not a shallow clone.
@@ -65,15 +65,29 @@ jobs:
       # Keyed on the runner image too, not just runner.os ("macOS" for every
       # image): these are C++ artifacts, so a toolchain change must rebuild
       # rather than silently relink a stale library.
+      #
+      # A run can only read caches from its own ref or from the default branch.
+      # This job runs on a tag, so anything it saves is invisible to the next
+      # tag — the cache has to be written by a run on main. That is what
+      # .github/workflows/warm-sherpa-cache.yml exists for; the key below must
+      # stay identical to the one there or the warm-up buys nothing.
       - name: Cache sherpa-onnx xcframework
         id: sherpa-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .deps
           key: sherpa-onnx-macos-26-arm64-${{ hashFiles('scripts/build-sherpa-onnx.sh') }}
+          restore-keys: |
+            sherpa-onnx-macos-26-arm64-
 
+      # Deliberately unconditional. cache-hit is "false" on a restore-keys
+      # (prefix) match even though .deps was restored, so gating on it would
+      # rebuild anyway; and cache-matched-key is an output of cache/restore, not
+      # of cache — it would read as empty here and never skip. The script is
+      # idempotent: it returns early when the xcframework is present, and its
+      # cheap path still re-copies the vendored SherpaOnnx.swift that the next
+      # step verifies.
       - name: Build sherpa-onnx
-        if: steps.sherpa-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-sherpa-onnx.sh
 
       # build-sherpa-onnx.sh overwrites the vendored SherpaOnnx.swift from the
@@ -168,7 +182,7 @@ jobs:
 
       # Always keep the DMG reachable, including on a dispatch run that does not
       # publish, so a failed upload never means rebuilding and re-notarizing.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: TingMo-${{ env.TAG }}-dmg
           path: |
@@ -179,7 +193,7 @@ jobs:
 
       - name: Publish GitHub release
         if: github.event_name == 'push' || github.event.inputs.publish == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
