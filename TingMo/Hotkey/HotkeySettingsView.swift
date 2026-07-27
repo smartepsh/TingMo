@@ -12,6 +12,14 @@ struct HotkeySettingsView: View {
     @State private var pendingModifiers: NSEvent.ModifierFlags = []
     /// Display string for the combo being built.
     @State private var pendingDisplayName: String = ""
+    /// Set when a rejected combo was attempted, so the hint can explain why.
+    @State private var rejectionMessage: String?
+
+    private var recordingHintText: String {
+        rejectionMessage ?? String(
+            localized: "Press your desired key combination, or Esc to cancel. fn on its own is supported; other modifiers need a regular key."
+        )
+    }
 
     var body: some View {
         Section {
@@ -29,9 +37,9 @@ struct HotkeySettingsView: View {
             }
 
             if isRecordingHotkey {
-                Text("Press your desired key combination, or Esc to cancel. Modifier-only combos and standalone keys are both supported.")
+                Text(recordingHintText)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(rejectionMessage == nil ? Color.secondary : Color.red)
             }
         } header: {
             Text("Hotkey")
@@ -80,6 +88,7 @@ struct HotkeySettingsView: View {
         pendingKeyCode = nil
         pendingModifiers = []
         pendingDisplayName = ""
+        rejectionMessage = nil
 
         // Monitor keyDown and keyUp — captures regular keys with or without modifiers
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
@@ -127,8 +136,14 @@ struct HotkeySettingsView: View {
             }
 
             if currentModifiers.isEmpty && !pendingModifiers.isEmpty {
-                // All modifiers released — commit modifier-only hotkey
-                commitModifierOnlyRecording(keyCode: Int(event.keyCode))
+                // All modifiers released — commit only if this is a bare fn.
+                // Other modifier-only combos (⌘, ⌥, ⌃, ⇧) would swallow the
+                // key system-wide and collide with ordinary shortcuts.
+                if Int(event.keyCode) == kVK_Function, pendingModifiers == [.function] {
+                    commitModifierOnlyRecording(keyCode: Int(event.keyCode))
+                } else {
+                    rejectModifierOnlyRecording()
+                }
                 return nil
             }
 
@@ -167,6 +182,16 @@ struct HotkeySettingsView: View {
         stopMonitors()
     }
 
+    /// Keep recording so the user can retry without re-entering the field.
+    private func rejectModifierOnlyRecording() {
+        rejectionMessage = String(
+            localized: "That combination needs a regular key. Only fn works on its own."
+        )
+        pendingKeyCode = nil
+        pendingModifiers = []
+        pendingDisplayName = ""
+    }
+
     private func commitModifierOnlyRecording(keyCode: Int) {
         hotkeyManager.hotkey = HotkeyCombination(
             keyCode: keyCode,
@@ -184,6 +209,7 @@ struct HotkeySettingsView: View {
         pendingKeyCode = nil
         pendingModifiers = []
         pendingDisplayName = ""
+        rejectionMessage = nil
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil

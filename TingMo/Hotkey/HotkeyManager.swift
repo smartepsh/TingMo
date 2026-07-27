@@ -66,6 +66,10 @@ final class HotkeyManager {
     private var runLoopSource: CFRunLoopSource?
     private var keyDownTime: Date?
     private var isToggleRecording = false
+    /// True while a modifier-only hotkey is physically held. Tracked separately
+    /// from `keyDownTime` because a modifier's press and release both arrive as
+    /// `flagsChanged` and must be distinguished by held state.
+    private var isModifierHotkeyHeld = false
 
     private static let hotkeyKey = "HotkeyManager.hotkey"
     private static let excludedAppsKey = "HotkeyManager.excludedApps"
@@ -99,10 +103,14 @@ final class HotkeyManager {
     func recordingDidEnd() {
         keyDownTime = nil
         isToggleRecording = false
+        isModifierHotkeyHeld = false
     }
 
     private func reinstallTap() {
         removeTap()
+        // A held modifier's release event is lost across a tap rebuild, so the
+        // press cannot be completed. Drop it rather than leaving a stuck hold.
+        isModifierHotkeyHeld = false
         installTap()
     }
 
@@ -159,21 +167,33 @@ final class HotkeyManager {
             return Unmanaged.passRetained(event)
         }
 
-        // Handle flagsChanged for modifier-only hotkeys
+        // Handle flagsChanged for modifier-only hotkeys (fn only; see
+        // HotkeySettingsView). A modifier fires flagsChanged on both press and
+        // release with the same keycode — the two are told apart by whether the
+        // modifier bit is still set in `flags`. Using the real release keeps
+        // press-to-record working and avoids the state drift a simulated
+        // key-up timer caused on rapid re-presses.
         if type == .flagsChanged {
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-            let flags = event.flags
-            guard keyCode == hotkey.keyCode && matchesModifiers(flags) else {
+            guard keyCode == hotkey.keyCode else {
                 return Unmanaged.passRetained(event)
             }
-            if isExcludedAppFocused() {
+            let isPressed = matchesModifiers(event.flags)
+
+            // A release must be honoured even if focus moved to an excluded app
+            // while the modifier was held, otherwise the press never ends.
+            if isExcludedAppFocused() && !isModifierHotkeyHeld {
                 return Unmanaged.passRetained(event)
             }
-            // Treat flagsChanged press as a toggle trigger
-            handleHotkeyDown()
-            // Schedule a simulated "up" after threshold to support toggle mode
-            DispatchQueue.main.asyncAfter(deadline: .now() + shortPressThreshold + 0.05) { [weak self] in
-                self?.handleHotkeyUp()
+
+            if isPressed {
+                guard !isModifierHotkeyHeld else { return nil } // ignore autorepeat
+                isModifierHotkeyHeld = true
+                handleHotkeyDown()
+            } else {
+                guard isModifierHotkeyHeld else { return Unmanaged.passRetained(event) }
+                isModifierHotkeyHeld = false
+                handleHotkeyUp()
             }
             return nil
         }
