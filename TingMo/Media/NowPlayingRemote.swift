@@ -32,9 +32,11 @@ nonisolated enum NowPlayingRemote {
     /// "unknown". A healthy round-trip measured ~170 ms on an idle machine, so
     /// this leaves roughly an order of magnitude of headroom for a loaded
     /// system while still bounding the stall on recording start.
+    ///
+    /// The adapter has no timeout of its own: `getTrackInfo` calls back either
+    /// when perl prints a line or when the child exits, so a wedged helper
+    /// would otherwise block forever. This is the only bound.
     private static let queryTimeout: TimeInterval = 2.0
-
-    private static let queue = DispatchQueue(label: "com.tingmo.mediaremote", qos: .userInitiated)
 
     // MARK: - Queries
 
@@ -74,6 +76,17 @@ nonisolated enum NowPlayingRemote {
     /// no timeout of its own, so a wedged helper would otherwise hang the
     /// recording path forever.
     private static func trackInfoPayload() -> TrackInfo.Payload? {
+        // The adapter delivers its result via `DispatchQueue.main.async`, so
+        // blocking the main thread here would deadlock: the callback could
+        // never run to signal the semaphore. Callers are expected to be on a
+        // background queue (`MediaPlaybackGuard.operationQueue`); refuse
+        // rather than hang if that ever stops being true.
+        guard !Thread.isMainThread else {
+            assertionFailure("NowPlayingRemote queries must not run on the main thread")
+            NSLog("[TingMo] Now Playing query attempted on the main thread; skipped")
+            return nil
+        }
+
         let box = ResultBox<TrackInfo.Payload>()
         let semaphore = DispatchSemaphore(value: 0)
         // MediaController owns the subprocess plumbing; a fresh instance per

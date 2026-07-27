@@ -553,8 +553,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ejbills/mediaremote-adapter";
 			requirement = {
-				branch = master;
-				kind = branch;
+				kind = revision;
+				revision = cf30c4f1af29b5829d859f088f8dbdf12611a046;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

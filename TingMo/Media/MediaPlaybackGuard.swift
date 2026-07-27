@@ -161,10 +161,10 @@ nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
         defer { activeSession = nil }
         guard session.owesResume else { return }
 
-        // A missing PID usually means MediaRemote denied read access even
-        // though CoreAudio proved that output was active. The accepted pause
-        // command is the only reliable state we have, so pay its resume debt
-        // directly. Explicit play is idempotent if the user already resumed.
+        // A session without a known PID cannot be identity-checked on resume,
+        // so the accepted pause command is the only state to act on: pay the
+        // debt directly. Explicit play is idempotent if the user already
+        // resumed manually.
         guard let pausedPID = session.pausedPID else {
             sendResumeCommand()
             return
