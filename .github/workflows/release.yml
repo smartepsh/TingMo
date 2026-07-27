@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Lets a release be re-run without moving the tag (e.g. after a transient
+  # notarization failure). Builds the tag as given; publishing stays opt-in.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (e.g. v0.1.0)'
+        required: true
+      publish:
+        description: 'Upload the DMG to a GitHub release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Apple Silicon runner: the build is arm64-only (see Config/Signing.xcconfig
+    # — the sherpa-onnx slice and onnxruntime are both arm64). macos-26 carries a
+    # recent Xcode, matching the toolchain the project is developed against.
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # release.sh derives the build number from `git rev-list --count`,
+          # which needs the full history, not a shallow clone.
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      # macos-26's default Xcode (26.x) matches the toolchain used locally, so no
+      # pin is needed normally. Set the XCODE_VERSION repository variable to
+      # override — e.g. if the image default moves ahead of what you build with.
+      - name: Select Xcode
+        env:
+          XCODE_VERSION: ${{ vars.XCODE_VERSION }}
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_VERSION:-}" ]; then
+            app="/Applications/Xcode_${XCODE_VERSION}.app"
+            if [ ! -d "$app" ]; then
+              echo "::error::$app not found. Available:" >&2
+              ls -d /Applications/Xcode*.app >&2
+              exit 1
+            fi
+            sudo xcode-select -switch "$app"
+          fi
+          xcodebuild -version
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      # The sherpa-onnx static library takes ~10 minutes to compile and is not
+      # committed. Key on the build script so a change to build flags busts the
+      # cache; sherpa-onnx itself is cloned at --depth 1 from main by the script,
+      # so the key intentionally does not track its upstream revision.
+      # Keyed on the runner image too, not just runner.os ("macOS" for every
+      # image): these are C++ artifacts, so a toolchain change must rebuild
+      # rather than silently relink a stale library.
+      - name: Cache sherpa-onnx xcframework
+        id: sherpa-cache
+        uses: actions/cache@v4
+        with:
+          path: .deps
+          key: sherpa-onnx-macos-26-arm64-${{ hashFiles('scripts/build-sherpa-onnx.sh') }}
+
+      - name: Build sherpa-onnx
+        if: steps.sherpa-cache.outputs.cache-hit != 'true'
+        run: ./scripts/build-sherpa-onnx.sh
+
+      # build-sherpa-onnx.sh overwrites the vendored SherpaOnnx.swift from the
+      # upstream checkout. If that copy differs from what is committed, the build
+      # is not reproducing the reviewed source — fail rather than ship it.
+      - name: Verify vendored sources unchanged
+        run: |
+          if ! git diff --quiet -- TingMo/SpeechEngine/Vendor/SherpaOnnx.swift; then
+            echo "::error::Vendored SherpaOnnx.swift differs from upstream. Re-vendor and commit it." >&2
+            git diff --stat -- TingMo/SpeechEngine/Vendor/SherpaOnnx.swift >&2
+            exit 1
+          fi
+
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          : "${BUILD_CERTIFICATE_BASE64:?Missing BUILD_CERTIFICATE_BASE64 secret}"
+          : "${P12_PASSWORD:?Missing P12_PASSWORD secret}"
+          : "${KEYCHAIN_PASSWORD:?Missing KEYCHAIN_PASSWORD secret}"
+
+          certificate_path="$RUNNER_TEMP/developer-id.p12"
+          keychain_path="$RUNNER_TEMP/tingmo-signing.keychain-db"
+
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          # Keep the login keychain in the search list so xcodebuild can still
+          # resolve Apple's intermediate certificates.
+          security list-keychains -d user -s "$keychain_path" login.keychain-db
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$keychain_path" >/dev/null
+
+          rm -f "$certificate_path"
+          echo "SIGNING_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+
+          # SIGNING_IDENTITY is configured as a secret; fall back to whatever the
+          # imported certificate provides so a mismatch fails here with the
+          # available identities listed, rather than deep inside xcodebuild.
+          identity="${SIGNING_IDENTITY:-}"
+          if [ -z "$identity" ]; then
+            identity="$(
+              security find-identity -v -p codesigning "$keychain_path" |
+                sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1
+            )"
+          fi
+          if [ -z "$identity" ]; then
+            echo "::error::No Developer ID Application identity found." >&2
+            security find-identity -v -p codesigning "$keychain_path" >&2
+            exit 1
+          fi
+          if ! security find-identity -v -p codesigning "$keychain_path" | grep -qF "$identity"; then
+            echo "::error::SIGNING_IDENTITY not present in the imported certificate:" >&2
+            echo "  wanted: $identity" >&2
+            security find-identity -v -p codesigning "$keychain_path" >&2
+            exit 1
+          fi
+          echo "Using identity: $identity"
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Build, notarize and package DMG
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          # SIGNING_IDENTITY and SIGNING_KEYCHAIN come from the previous step.
+        run: ./scripts/release.sh "$TAG" --no-publish
+
+      - name: Verify signature and notarization
+        run: |
+          set -euo pipefail
+          dmg="build/TingMo-${TAG}.dmg"
+          spctl -a -t open --context context:primary-signature -v "$dmg"
+          xcrun stapler validate "$dmg"
+
+      - name: Checksum
+        run: |
+          cd build
+          shasum -a 256 "TingMo-${TAG}.dmg" > "TingMo-${TAG}.dmg.sha256"
+          cat "TingMo-${TAG}.dmg.sha256"
+
+      # Always keep the DMG reachable, including on a dispatch run that does not
+      # publish, so a failed upload never means rebuilding and re-notarizing.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TingMo-${{ env.TAG }}-dmg
+          path: |
+            build/TingMo-${{ env.TAG }}.dmg
+            build/TingMo-${{ env.TAG }}.dmg.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish GitHub release
+        if: github.event_name == 'push' || github.event.inputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          generate_release_notes: true
+          files: |
+            build/TingMo-${{ env.TAG }}.dmg
+            build/TingMo-${{ env.TAG }}.dmg.sha256
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/tingmo-signing.keychain-db" || true

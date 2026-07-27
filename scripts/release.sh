@@ -43,7 +43,13 @@ if ! git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
-for tool in create-dmg gh xcrun; do
+required_tools=(create-dmg xcrun)
+# gh is only needed when this script publishes the release itself. In CI the
+# workflow uploads the DMG, so gh is absent and must not be required.
+if (( PUBLISH )); then
+  required_tools+=(gh)
+fi
+for tool in "${required_tools[@]}"; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 1; }
 done
 
@@ -78,6 +84,22 @@ echo "==> Cleaning previous build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
+# The sherpa-onnx static library is not committed; without it the link step
+# fails late, after the slow archive. Fail fast with an actionable message.
+if [[ ! -d "$ROOT/.deps/sherpa-onnx/build-swift-macos/sherpa-onnx.xcframework" ]]; then
+  echo "Missing sherpa-onnx xcframework. Run ./scripts/build-sherpa-onnx.sh first." >&2
+  exit 1
+fi
+
+# In CI the certificate lives in a temporary keychain rather than the login
+# keychain, and xcodebuild only searches the user's keychain list.
+KEYCHAIN_ARGS=()
+if [[ -n "${SIGNING_KEYCHAIN:-}" ]]; then
+  KEYCHAIN_ARGS+=(OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $SIGNING_KEYCHAIN")
+else
+  KEYCHAIN_ARGS+=(OTHER_CODE_SIGN_FLAGS="--timestamp")
+fi
+
 echo "==> Archiving"
 xcodebuild archive \
   -project "$PROJECT" \
@@ -92,7 +114,7 @@ xcodebuild archive \
   MARKETING_VERSION="$VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   ENABLE_HARDENED_RUNTIME=YES \
-  OTHER_CODE_SIGN_FLAGS="--timestamp"
+  "${KEYCHAIN_ARGS[@]}"
 
 echo "==> Preparing ExportOptions.plist"
 sed "s/\$(DEVELOPMENT_TEAM)/$DEVELOPMENT_TEAM/g" \
@@ -127,6 +149,17 @@ create-dmg \
   "$DMG_PATH" \
   "$APP_PATH"
 
+# create-dmg emits an unsigned disk image. Notarization would still succeed —
+# it validates the signed .app inside — but Gatekeeper rejects the container
+# itself with "source=no usable signature", so the DMG must be signed too.
+echo "==> Signing DMG"
+codesign --force \
+  --sign "$SIGNING_IDENTITY" \
+  --timestamp \
+  ${SIGNING_KEYCHAIN:+--keychain "$SIGNING_KEYCHAIN"} \
+  "$DMG_PATH"
+codesign --verify --strict --verbose=2 "$DMG_PATH"
+
 echo "==> Notarizing DMG"
 xcrun notarytool submit "$DMG_PATH" \
   --apple-id "$APPLE_ID" \
@@ -134,6 +167,11 @@ xcrun notarytool submit "$DMG_PATH" \
   --team-id "$APPLE_TEAM_ID" \
   --wait
 xcrun stapler staple "$DMG_PATH"
+
+# Gatekeeper's actual verdict, not just "the ticket attached". This is the check
+# that catches an unsigned or improperly signed container.
+echo "==> Verifying DMG"
+spctl -a -t open --context context:primary-signature -v "$DMG_PATH"
 
 if (( PUBLISH )); then
   echo "==> Publishing GitHub release for $TAG"
