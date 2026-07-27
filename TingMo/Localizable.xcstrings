@@ -97,6 +97,9 @@
     "Cancel" : {
 
     },
+    "Cancel Recording Start" : {
+
+    },
     "Clipboard" : {
 
     },
@@ -496,6 +499,9 @@
           }
         }
       }
+    },
+    "Preparing Recording…" : {
+
     },
     "Preparing Speech Model…" : {
 

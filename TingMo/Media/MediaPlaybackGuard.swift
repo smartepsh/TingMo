@@ -1,69 +1,180 @@
 import Foundation
 
-/// Pauses system media playback while dictation records and resumes it
-/// afterwards — the macOS counterpart of iOS audio-session interruption,
-/// which AppKit does not provide.
+/// Session-scoped media interruption for dictation.
 ///
-/// Both directions go through `NowPlayingRemote`: an explicit MediaRemote
-/// pause command on record start, an explicit play command on teardown.
-/// Earlier versions guessed "is something playing?" from CoreAudio device
-/// activity and acted by posting the hardware play/pause key — a toggle
-/// that could *start* a paused track, and that makes macOS launch Apple
-/// Music when no Now Playing app exists. With explicit commands neither
-/// misfire is possible, so when the playback state is unknown the guard
-/// simply leaves the media alone instead of guessing.
-final class MediaPlaybackGuard {
-    private let isNowPlayingAppPlaying: () -> Bool?
-    private let nowPlayingPID: () -> pid_t?
-    private let pausePlayback: () -> Void
-    private let resumePlayback: () -> Void
+/// All blocking MediaRemote queries run on a dedicated serial queue, never on
+/// the main thread. Commands are explicit pause/play operations; this class
+/// deliberately never emits a hardware-key toggle.
+nonisolated final class MediaPlaybackGuard: @unchecked Sendable {
+    struct PlaybackSnapshot: Equatable, Sendable {
+        var isPlaying: Bool?
+        var pid: pid_t?
+    }
 
-    /// True while we owe the media app a resume. Exposed for tests.
-    private(set) var pausedByUs = false
-    /// The Now Playing app we paused, so resume can refuse to touch a
-    /// different app the user switched to mid-recording.
-    private var pausedPID: pid_t?
+    enum BeginResult: Equatable, Sendable {
+        /// Media was already quiet, or a requested pause was observed.
+        case ready
+        /// State could not be verified. Recording may continue fail-open, but
+        /// no speculative media command or resume debt is created.
+        case unverified
+    }
+
+    private struct Session {
+        let id: UUID
+        var pausedPID: pid_t?
+        var owesResume = false
+        var beginResult: BeginResult = .unverified
+    }
+
+    private let queryPlayback: @Sendable () -> PlaybackSnapshot
+    private let pausePlayback: @Sendable () -> Bool
+    private let resumePlayback: @Sendable () -> Bool
+    private let retryDelay: TimeInterval
+    private let queryAttempts: Int
+    private let operationQueue = DispatchQueue(
+        label: "com.tingmo.media-playback-guard",
+        qos: .userInitiated
+    )
+
+    /// Accessed only by `operationQueue`.
+    private var activeSession: Session?
 
     init(
-        isNowPlayingAppPlaying: @escaping () -> Bool? = NowPlayingRemote.isPlaying,
-        nowPlayingPID: @escaping () -> pid_t? = NowPlayingRemote.nowPlayingApplicationPID,
-        pausePlayback: @escaping () -> Void = { NowPlayingRemote.pause() },
-        resumePlayback: @escaping () -> Void = { NowPlayingRemote.play() }
+        queryPlayback: @escaping @Sendable () -> PlaybackSnapshot = {
+            let snapshot = NowPlayingRemote.snapshot()
+            return PlaybackSnapshot(isPlaying: snapshot.isPlaying, pid: snapshot.pid)
+        },
+        pausePlayback: @escaping @Sendable () -> Bool = { NowPlayingRemote.pause() },
+        resumePlayback: @escaping @Sendable () -> Bool = { NowPlayingRemote.play() },
+        retryDelay: TimeInterval = 0.025,
+        queryAttempts: Int = 2
     ) {
-        self.isNowPlayingAppPlaying = isNowPlayingAppPlaying
-        self.nowPlayingPID = nowPlayingPID
+        self.queryPlayback = queryPlayback
         self.pausePlayback = pausePlayback
         self.resumePlayback = resumePlayback
+        self.retryDelay = retryDelay
+        self.queryAttempts = max(1, queryAttempts)
     }
 
-    /// Pause playback only when the Now Playing app is definitely playing
-    /// right now. Unknown state (no Now Playing app, MediaRemote
-    /// unavailable, query timeout) means do nothing: skipping a pause costs
-    /// at most one noisy recording, while acting on a guess is what used to
-    /// start paused tracks and summon Apple Music.
-    func pauseForRecording() {
-        pausedByUs = false
-        pausedPID = nil
-        guard isNowPlayingAppPlaying() == true else { return }
-        pausedPID = nowPlayingPID()
-        pausePlayback()
-        pausedByUs = true
+    /// Inspect the current Now Playing session and pause it only when it is
+    /// definitely playing and has a stable PID. Unknown state fails open:
+    /// recording may continue, but no media command is guessed.
+    func beginSession(id: UUID) async -> BeginResult {
+        await withCheckedContinuation { continuation in
+            operationQueue.async { [self] in
+                continuation.resume(returning: beginSessionBlocking(id: id))
+            }
+        }
     }
 
-    /// Resume playback, but only when `pauseForRecording()` actually paused
-    /// something. Safe to call from every recording-teardown path; it
-    /// resumes at most once per pause.
-    func resumeAfterRecording() {
-        guard pausedByUs else { return }
-        pausedByUs = false
-        let pausedPID = self.pausedPID
-        self.pausedPID = nil
+    /// Pay this session's resume debt, if any, then forget the session.
+    func endSession(id: UUID) async {
+        await finishSession(id: id)
+    }
 
-        // The user may have switched Now Playing apps or resumed playback
-        // manually while we recorded; in either case the pause we owed is
-        // no longer ours to undo.
-        if let pausedPID, let currentPID = nowPlayingPID(), currentPID != pausedPID { return }
-        if isNowPlayingAppPlaying() == true { return }
-        resumePlayback()
+    /// Cancellation has the same media teardown semantics as a normal end.
+    func cancelSession(id: UUID) async {
+        await finishSession(id: id)
+    }
+
+    private func finishSession(id: UUID) async {
+        await withCheckedContinuation { continuation in
+            operationQueue.async { [self] in
+                if activeSession?.id == id {
+                    finishActiveSessionBlocking()
+                }
+                continuation.resume()
+            }
+        }
+    }
+
+    private func beginSessionBlocking(id: UUID) -> BeginResult {
+        if activeSession?.id == id {
+            return activeSession?.beginResult ?? .unverified
+        }
+
+        // Defensive cleanup: callers should serialize sessions, but a stale
+        // debt must never be silently discarded if they do not.
+        if activeSession != nil {
+            finishActiveSessionBlocking()
+        }
+
+        activeSession = Session(id: id)
+
+        guard let snapshot = initialSnapshotWithRetry() else {
+            return .unverified
+        }
+        guard snapshot.isPlaying == true else {
+            activeSession?.beginResult = .ready
+            return .ready
+        }
+        guard let pid = snapshot.pid else {
+            return .unverified
+        }
+
+        guard pausePlayback() else {
+            return .unverified
+        }
+
+        // The explicit pause was accepted, so this exact session now owns one
+        // resume debt even if confirmation times out.
+        activeSession?.pausedPID = pid
+        activeSession?.owesResume = true
+
+        // Give mediaremoted a brief opportunity to apply the command, then
+        // confirm once. Together with the initial retry this keeps worst-case
+        // recording preparation near 500 ms.
+        if retryDelay > 0 {
+            Thread.sleep(forTimeInterval: retryDelay)
+        }
+        let confirmation = queryPlayback()
+        let pauseConfirmed = confirmation.isPlaying == false && confirmation.pid == pid
+        let result: BeginResult = pauseConfirmed ? .ready : .unverified
+        activeSession?.beginResult = result
+        return result
+    }
+
+    private func finishActiveSessionBlocking() {
+        guard let session = activeSession else { return }
+        defer { activeSession = nil }
+        guard session.owesResume, let pausedPID = session.pausedPID else { return }
+
+        guard let snapshot = resumeSnapshotWithRetry() else { return }
+        guard snapshot.pid == pausedPID else { return }
+
+        // The user may have resumed manually while recording. Explicit play
+        // is needed only when the same app remains paused.
+        guard snapshot.isPlaying == false else { return }
+        _ = resumePlayback()
+    }
+
+    /// For recording start, `false` is conclusive even when there is no PID.
+    /// `true` requires a PID so any pause can later be restored safely.
+    private func initialSnapshotWithRetry() -> PlaybackSnapshot? {
+        queryWithRetry { snapshot in
+            snapshot.isPlaying == false ||
+                (snapshot.isPlaying == true && snapshot.pid != nil)
+        }
+    }
+
+    /// Resume requires both state and identity; otherwise no play command is
+    /// sent to a potentially unrelated Now Playing app.
+    private func resumeSnapshotWithRetry() -> PlaybackSnapshot? {
+        queryWithRetry { snapshot in
+            snapshot.isPlaying != nil && snapshot.pid != nil
+        }
+    }
+
+    private func queryWithRetry(
+        isConclusive: (PlaybackSnapshot) -> Bool
+    ) -> PlaybackSnapshot? {
+        for attempt in 0..<queryAttempts {
+            let snapshot = queryPlayback()
+            if isConclusive(snapshot) { return snapshot }
+            if attempt + 1 < queryAttempts, retryDelay > 0 {
+                Thread.sleep(forTimeInterval: retryDelay)
+            }
+        }
+        return nil
     }
 }

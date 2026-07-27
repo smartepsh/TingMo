@@ -24,16 +24,44 @@ import Foundation
 /// `dlopen`. If any symbol is missing or a future macOS locks these calls
 /// down, every query returns `nil` ("unknown") and every command becomes a
 /// no-op — callers must treat that as "leave the media alone".
-enum NowPlayingRemote {
+nonisolated enum NowPlayingRemote {
     /// How long a synchronous query waits for `mediaremoted` before giving
     /// up and reporting "unknown". The IPC normally answers within a few
     /// milliseconds; this cap only bounds the stall on recording start when
     /// the daemon is unresponsive.
-    private static let queryTimeout: TimeInterval = 0.2
+    private static let queryTimeout: TimeInterval = 0.15
 
     private static let queue = DispatchQueue(label: "com.tingmo.mediaremote", qos: .userInitiated)
 
     // MARK: - Queries
+
+    struct Snapshot: Equatable, Sendable {
+        let isPlaying: Bool?
+        let pid: pid_t?
+    }
+
+    /// Query playback and app identity in parallel. This method blocks its
+    /// caller for at most one query timeout and must therefore run away from
+    /// the main thread.
+    static func snapshot() -> Snapshot {
+        let group = DispatchGroup()
+        let box = SnapshotBox()
+
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            box.isPlaying = isPlaying()
+            group.leave()
+        }
+
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            box.pid = nowPlayingApplicationPID()
+            group.leave()
+        }
+
+        group.wait()
+        return Snapshot(isPlaying: box.isPlaying, pid: box.pid)
+    }
 
     /// `true` if the active Now Playing app is currently playing, `false`
     /// if it is paused/stopped or no Now Playing app exists, `nil` if the
@@ -93,12 +121,28 @@ enum NowPlayingRemote {
         return box.value
     }
 
-    private final class ResultBox<T> {
+    private final class ResultBox<T>: @unchecked Sendable {
         private let lock = NSLock()
         private var stored: T?
         var value: T? {
             get { lock.lock(); defer { lock.unlock() }; return stored }
             set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+        }
+    }
+
+    private final class SnapshotBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedIsPlaying: Bool?
+        private var storedPID: pid_t?
+
+        var isPlaying: Bool? {
+            get { lock.lock(); defer { lock.unlock() }; return storedIsPlaying }
+            set { lock.lock(); defer { lock.unlock() }; storedIsPlaying = newValue }
+        }
+
+        var pid: pid_t? {
+            get { lock.lock(); defer { lock.unlock() }; return storedPID }
+            set { lock.lock(); defer { lock.unlock() }; storedPID = newValue }
         }
     }
 

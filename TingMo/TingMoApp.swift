@@ -113,6 +113,7 @@ struct TingMoApp: App {
     private var statusText: String {
         switch pipeline.state {
         case .idle: String(localized: "Idle")
+        case .preparing: String(localized: "Preparing Recording…")
         case .recording: String(localized: "Recording…")
         case .transcribing: String(localized: "Transcribing…")
         }
@@ -136,6 +137,8 @@ struct TingMoApp: App {
             return String(localized: "Preparing Speech Model…")
         case .idle:
             return String(localized: "Start Recording") + hotkeySuffix
+        case .preparing:
+            return String(localized: "Cancel Recording Start") + hotkeySuffix
         case .recording:
             return String(localized: "Stop Recording") + hotkeySuffix
         case .transcribing:
@@ -203,7 +206,7 @@ struct TingMoApp: App {
                 NSApp.activate(ignoringOtherApps: true)
             }
             .keyboardShortcut(",", modifiers: .command)
-            .disabled(pipeline.state == .recording)
+            .disabled(pipeline.state == .recording || pipeline.state == .preparing)
 
             Divider()
 
@@ -235,10 +238,22 @@ struct TingMoApp: App {
                     }
                 }
                 .onChange(of: pipeline.state) { _, newState in
-                    // When the pipeline returns to idle after transcribing,
-                    // flash any surfaced error on the indicator, otherwise
-                    // hide it.
-                    if newState == .idle {
+                    switch newState {
+                    case .preparing:
+                        audioDeviceManager.isRecording = false
+                        statusIndicatorManager.setProcessing(true)
+                        statusIndicatorManager.show()
+                    case .recording:
+                        audioDeviceManager.isRecording = true
+                        statusIndicatorManager.setProcessing(false)
+                        statusIndicatorManager.audioLevel = 0.3
+                        statusIndicatorManager.show()
+                    case .transcribing:
+                        audioDeviceManager.isRecording = false
+                        statusIndicatorManager.setProcessing(true)
+                    case .idle:
+                        audioDeviceManager.isRecording = false
+                        statusIndicatorManager.setProcessing(false)
                         if let err = pipeline.lastError {
                             statusIndicatorManager.showError(err.localizedDescription)
                         } else if statusIndicatorManager.isShowing {
@@ -276,24 +291,21 @@ struct TingMoApp: App {
     // MARK: - Recording control
 
     private func toggleRecording() {
-        if pipeline.state == .recording {
+        switch pipeline.state {
+        case .preparing:
+            pipeline.cancel()
+        case .recording:
             pipeline.stopAndTranscribe()
-            audioDeviceManager.isRecording = false
-            // Keep indicator visible in processing state; it hides on success
-            // or flashes the error via the lastError observer.
-            statusIndicatorManager.setProcessing(true)
-        } else if pipeline.state == .idle {
+        case .idle:
             let preferredUID = audioDeviceManager.firstOnlineDevice()?.uid
             do {
                 try pipeline.start(preferredDeviceUID: preferredUID)
-                audioDeviceManager.isRecording = true
-                statusIndicatorManager.setProcessing(false)
-                statusIndicatorManager.audioLevel = 0.3
-                statusIndicatorManager.show()
             } catch {
                 let message = (pipeline.lastError ?? error).localizedDescription
                 statusIndicatorManager.showError(message)
             }
+        case .transcribing:
+            break
         }
     }
 
@@ -308,15 +320,12 @@ struct TingMoApp: App {
                         toggleRecording()
                     }
                 case .stopRecording:
-                    if pipeline.state == .recording {
+                    if pipeline.state == .preparing || pipeline.state == .recording {
                         toggleRecording()
                     }
                 case .cancelRecording:
-                    if pipeline.state == .recording {
+                    if pipeline.state == .preparing || pipeline.state == .recording {
                         pipeline.cancel()
-                        audioDeviceManager.isRecording = false
-                        statusIndicatorManager.setProcessing(false)
-                        statusIndicatorManager.hide()
                     }
                 }
             }

@@ -5,14 +5,16 @@ import Observation
 /// High-level dictation coordinator: capture audio → transcribe → translate → inject text.
 ///
 /// State machine:
-///   idle → recording (on start)
+///   idle → preparing (asynchronous media check/pause)
+///   preparing → recording (after capture starts)
 ///   recording → transcribing (on stop)
-///   transcribing → idle (after injection or error)
+///   transcribing → idle (after injection, media cleanup, or error)
 @Observable
 @MainActor
 final class DictationPipeline {
     enum State: Equatable {
         case idle
+        case preparing
         case recording
         case transcribing
     }
@@ -60,6 +62,9 @@ final class DictationPipeline {
     private var storedContextSnapshot: [LLMContextItem] = []
     private var storedTargetPID: pid_t?
     private var storedTargetAppName: String?
+    private var mediaSessionID: UUID?
+    private var startTask: Task<Void, Never>?
+    private var mediaCleanupTask: Task<Void, Never>?
 
     init(
         registry: EngineRegistry,
@@ -75,9 +80,9 @@ final class DictationPipeline {
         self.contextSettings = contextSettings
     }
 
-    /// Begin capturing audio. Fast — engine load/download is NOT done here.
-    /// - Parameter preferredDeviceUID: Optional input device UID. When nil,
-    ///   the system default input is used.
+    /// Begin a recording session. Engine validation is synchronous; media
+    /// inspection/pause and microphone startup continue asynchronously while
+    /// state is `.preparing`.
     func start(preferredDeviceUID: String? = nil) throws {
         guard state == .idle else { throw PipelineError.alreadyRunning }
         lastError = nil
@@ -109,19 +114,50 @@ final class DictationPipeline {
             throw PipelineError.notReady(reason: "Speech engine '\(engine.info.name)' is not ready.")
         }
 
-        // Pause media before the mic opens so the recording doesn't catch
-        // the tail of whatever is playing.
-        mediaGuard.pauseForRecording()
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let targetPID = frontmost?.processIdentifier
+        let targetAppName = frontmost?.localizedName
+        storedTargetPID = targetPID
+        storedTargetAppName = targetAppName
+        storedContextSnapshot = basicCollector.collect(
+            targetPID: targetPID,
+            targetAppName: targetAppName
+        )
+
+        let sessionID = UUID()
+        mediaSessionID = sessionID
+        state = .preparing
+        startTask = Task { [weak self] in
+            await self?.prepareCapture(
+                sessionID: sessionID,
+                preferredDeviceUID: preferredDeviceUID,
+                targetPID: targetPID
+            )
+        }
+    }
+
+    private func prepareCapture(
+        sessionID: UUID,
+        preferredDeviceUID: String?,
+        targetPID: pid_t?
+    ) async {
+        let mediaResult = await mediaGuard.beginSession(id: sessionID)
+
+        guard !Task.isCancelled,
+              state == .preparing,
+              mediaSessionID == sessionID
+        else {
+            await mediaGuard.cancelSession(id: sessionID)
+            return
+        }
+
+        if mediaResult == .unverified {
+            NSLog("[TingMo] MediaRemote state unavailable; recording continues without a media command")
+        }
 
         do {
-            let frontmost = NSWorkspace.shared.frontmostApplication
-            let targetPID = frontmost?.processIdentifier
-            let targetAppName = frontmost?.localizedName
-            storedTargetPID = targetPID
-            storedTargetAppName = targetAppName
-            storedContextSnapshot = basicCollector.collect(targetPID: targetPID, targetAppName: targetAppName)
-
             try capture.start(preferredDeviceUID: preferredDeviceUID)
+            startTask = nil
             state = .recording
 
             if contextSettings.screenshotOCREnabled {
@@ -135,11 +171,13 @@ final class DictationPipeline {
                 }
             }
         } catch {
-            // Normalize any capture failure to a user-facing error.
-            mediaGuard.resumeAfterRecording()
-            let surfaced = PipelineError.deviceUnavailable
-            lastError = surfaced
-            throw surfaced
+            await mediaGuard.cancelSession(id: sessionID)
+            guard mediaSessionID == sessionID else { return }
+            startTask = nil
+            mediaSessionID = nil
+            clearStoredContext()
+            lastError = PipelineError.deviceUnavailable
+            state = .idle
         }
     }
 
@@ -149,20 +187,25 @@ final class DictationPipeline {
     func stopAndTranscribe() {
         guard state == .recording else { return }
 
+        let sessionID = mediaSessionID
+        mediaSessionID = nil
+
         let audioURL: URL
         do {
             audioURL = try capture.stop()
         } catch {
-            mediaGuard.resumeAfterRecording()
-            lastError = error
-            state = .idle
+            state = .transcribing
+            scheduleMediaCleanup(sessionID: sessionID, cancelled: false)
+            Task { [weak self] in
+                await self?.finish(error: error)
+            }
             return
         }
 
-        // Recording is over — hand the speakers back while we transcribe.
-        mediaGuard.resumeAfterRecording()
-
+        // The microphone is closed before playback can resume. Media cleanup
+        // and transcription then proceed concurrently without blocking UI.
         state = .transcribing
+        scheduleMediaCleanup(sessionID: sessionID, cancelled: false)
 
         Task { [weak self] in
             guard let self else { return }
@@ -170,22 +213,72 @@ final class DictationPipeline {
         }
     }
 
-    /// Cancel a recording without transcribing.
+    /// Cancel a pending or active recording without transcribing.
     func cancel() {
         switch state {
+        case .preparing:
+            cancelPendingStart()
         case .recording:
             ocrTask?.cancel()
             ocrTask = nil
             storedOCRText = nil
-            storedContextSnapshot = []
-            storedTargetPID = nil
-            storedTargetAppName = nil
             capture.cancel()
-            mediaGuard.resumeAfterRecording()
-            state = .idle
+
+            let sessionID = mediaSessionID
+            mediaSessionID = nil
+            state = .transcribing
+            scheduleMediaCleanup(sessionID: sessionID, cancelled: true)
+            Task { [weak self] in
+                guard let self else { return }
+                self.clearStoredContext()
+                await self.finish(error: nil)
+            }
         case .transcribing, .idle:
             break
         }
+    }
+
+    private func cancelPendingStart() {
+        guard let sessionID = mediaSessionID else {
+            state = .idle
+            return
+        }
+
+        startTask?.cancel()
+        startTask = nil
+        Task { [weak self] in
+            guard let self else { return }
+            await self.mediaGuard.cancelSession(id: sessionID)
+            guard self.state == .preparing,
+                  self.mediaSessionID == sessionID
+            else { return }
+
+            self.mediaSessionID = nil
+            self.clearStoredContext()
+            self.state = .idle
+        }
+    }
+
+    private func scheduleMediaCleanup(sessionID: UUID?, cancelled: Bool) {
+        guard let sessionID else {
+            mediaCleanupTask = nil
+            return
+        }
+
+        mediaCleanupTask = Task { [mediaGuard] in
+            if cancelled {
+                await mediaGuard.cancelSession(id: sessionID)
+            } else {
+                await mediaGuard.endSession(id: sessionID)
+            }
+        }
+    }
+
+    private func clearStoredContext() {
+        storedOCRText = nil
+        storedContextSnapshot = []
+        storedTargetPID = nil
+        storedTargetAppName = nil
     }
 
     /// Current live audio peak, 0.0–1.0. Useful for the status indicator.
@@ -323,6 +416,10 @@ final class DictationPipeline {
     }
 
     private func finish(error: Error?) async {
+        if let mediaCleanupTask {
+            await mediaCleanupTask.value
+            self.mediaCleanupTask = nil
+        }
         lastError = error
         state = .idle
     }
