@@ -309,6 +309,7 @@ final class WhisperKitEngine: SpeechEngine, @unchecked Sendable {
                 model: model.variant,
                 modelRepo: "argmaxinc/whisperkit-coreml",
                 modelFolder: Self.modelFolder(for: model).path,
+                computeOptions: ModelComputeOptions(),
                 verbose: false,
                 logLevel: .error,
                 prewarm: false,

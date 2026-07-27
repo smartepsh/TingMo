@@ -1,36 +1,52 @@
-import AppKit
-import CoreAudio
+import Foundation
 
 /// Pauses system media playback while dictation records and resumes it
 /// afterwards — the macOS counterpart of iOS audio-session interruption,
 /// which AppKit does not provide.
 ///
-/// Detection reads the default output device's "running somewhere" flag,
-/// so anything audibly playing (Music, Spotify, a browser tab) counts.
-/// Control posts the system play/pause media key, which the OS routes to
-/// the current Now Playing app; the private MediaRemote framework would be
-/// cleaner but is entitlement-locked for third parties since macOS 15.4.
+/// Both directions go through `NowPlayingRemote`: an explicit MediaRemote
+/// pause command on record start, an explicit play command on teardown.
+/// Earlier versions guessed "is something playing?" from CoreAudio device
+/// activity and acted by posting the hardware play/pause key — a toggle
+/// that could *start* a paused track, and that makes macOS launch Apple
+/// Music when no Now Playing app exists. With explicit commands neither
+/// misfire is possible, so when the playback state is unknown the guard
+/// simply leaves the media alone instead of guessing.
 final class MediaPlaybackGuard {
-    private let isSystemAudioPlaying: () -> Bool
-    private let togglePlayPause: () -> Void
+    private let isNowPlayingAppPlaying: () -> Bool?
+    private let nowPlayingPID: () -> pid_t?
+    private let pausePlayback: () -> Void
+    private let resumePlayback: () -> Void
 
     /// True while we owe the media app a resume. Exposed for tests.
     private(set) var pausedByUs = false
+    /// The Now Playing app we paused, so resume can refuse to touch a
+    /// different app the user switched to mid-recording.
+    private var pausedPID: pid_t?
 
     init(
-        isSystemAudioPlaying: @escaping () -> Bool = MediaPlaybackGuard.defaultOutputDeviceIsRunning,
-        togglePlayPause: @escaping () -> Void = MediaPlaybackGuard.postPlayPauseMediaKey
+        isNowPlayingAppPlaying: @escaping () -> Bool? = NowPlayingRemote.isPlaying,
+        nowPlayingPID: @escaping () -> pid_t? = NowPlayingRemote.nowPlayingApplicationPID,
+        pausePlayback: @escaping () -> Void = { NowPlayingRemote.pause() },
+        resumePlayback: @escaping () -> Void = { NowPlayingRemote.play() }
     ) {
-        self.isSystemAudioPlaying = isSystemAudioPlaying
-        self.togglePlayPause = togglePlayPause
+        self.isNowPlayingAppPlaying = isNowPlayingAppPlaying
+        self.nowPlayingPID = nowPlayingPID
+        self.pausePlayback = pausePlayback
+        self.resumePlayback = resumePlayback
     }
 
-    /// Pause playback if something is audibly playing. Call before the
-    /// microphone opens so the music tail stays out of the recording.
+    /// Pause playback only when the Now Playing app is definitely playing
+    /// right now. Unknown state (no Now Playing app, MediaRemote
+    /// unavailable, query timeout) means do nothing: skipping a pause costs
+    /// at most one noisy recording, while acting on a guess is what used to
+    /// start paused tracks and summon Apple Music.
     func pauseForRecording() {
         pausedByUs = false
-        guard isSystemAudioPlaying() else { return }
-        togglePlayPause()
+        pausedPID = nil
+        guard isNowPlayingAppPlaying() == true else { return }
+        pausedPID = nowPlayingPID()
+        pausePlayback()
         pausedByUs = true
     }
 
@@ -40,56 +56,14 @@ final class MediaPlaybackGuard {
     func resumeAfterRecording() {
         guard pausedByUs else { return }
         pausedByUs = false
-        togglePlayPause()
-    }
+        let pausedPID = self.pausedPID
+        self.pausedPID = nil
 
-    // MARK: - System hooks
-
-    /// Whether any process is currently rendering to the default output
-    /// device. A paused player usually releases the device within a few
-    /// seconds, so this tracks "audibly playing" closely enough.
-    static func defaultOutputDeviceIsRunning() -> Bool {
-        var deviceID = AudioDeviceID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let deviceStatus = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID
-        )
-        guard deviceStatus == noErr, deviceID != kAudioObjectUnknown else { return false }
-
-        var isRunning: UInt32 = 0
-        size = UInt32(MemoryLayout<UInt32>.size)
-        address.mSelector = kAudioDevicePropertyDeviceIsRunningSomewhere
-        let runningStatus = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &isRunning)
-        return runningStatus == noErr && isRunning != 0
-    }
-
-    /// Post the hardware play/pause media key. The OS delivers it to the
-    /// active Now Playing app, the same target the keyboard key controls.
-    static func postPlayPauseMediaKey() {
-        postPlayPauseKey(down: true)
-        postPlayPauseKey(down: false)
-    }
-
-    private static func postPlayPauseKey(down: Bool) {
-        let playKeyType: Int32 = 16 // NX_KEYTYPE_PLAY
-        let flags: UInt = down ? 0x0A00 : 0x0B00 // NX key down / key up
-        let data1 = Int((playKeyType << 16) | Int32(flags))
-        guard let event = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: NSEvent.ModifierFlags(rawValue: flags),
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8, // NX_SUBTYPE_AUX_CONTROL_BUTTONS
-            data1: data1,
-            data2: -1
-        ) else { return }
-        event.cgEvent?.post(tap: .cghidEventTap)
+        // The user may have switched Now Playing apps or resumed playback
+        // manually while we recorded; in either case the pause we owed is
+        // no longer ours to undo.
+        if let pausedPID, let currentPID = nowPlayingPID(), currentPID != pausedPID { return }
+        if isNowPlayingAppPlaying() == true { return }
+        resumePlayback()
     }
 }

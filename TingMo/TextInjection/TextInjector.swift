@@ -6,14 +6,18 @@ import Carbon.HIToolbox
 /// synthesizing Cmd+V, and restoring the original pasteboard contents
 /// after a configurable delay.
 ///
-/// The restore delay gives the target app time to consume the paste
-/// before we swap the clipboard back. 500 ms is a reasonable default;
-/// users who rely on clipboard managers or slow apps may want longer.
+/// The restore delay is how long the transcription result stays on the
+/// pasteboard before we restore the user's original content. The Cmd+V
+/// paste fires immediately (it is synchronous), so a longer delay only
+/// means the result remains available for the user to paste again
+/// elsewhere. The defaults are configurable from the Settings → System
+/// → Clipboard section. 5 seconds is a sensible default; users who
+/// don't want the result to linger can set a shorter value.
 final class TextInjector {
     static let shared = TextInjector()
 
     private static let restoreDelayKey = "TextInjection.restoreDelay"
-    private static let defaultRestoreDelay: TimeInterval = 0.5
+    private static let defaultRestoreDelay: TimeInterval = 5
 
     private init() {}
 
@@ -59,7 +63,14 @@ final class TextInjector {
         try synthesizeCmdV()
 
         try? await Task.sleep(for: .seconds(restoreDelay))
-        snapshot.restore(to: pasteboard)
+
+        // Only restore if the pasteboard still holds the text we wrote.
+        // If the user (or another transcription) overwrote the clipboard
+        // during the delay, we leave it alone rather than clobbering the
+        // newer content with a stale snapshot.
+        if pasteboard.string(forType: .string) == text {
+            snapshot.restore(to: pasteboard)
+        }
     }
 
     // MARK: - Cmd+V synthesis

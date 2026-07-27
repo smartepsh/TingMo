@@ -59,6 +59,9 @@
         }
       }
     },
+    "After TingMo pastes the transcription result, keep it on the clipboard for this many seconds before restoring your original clipboard content." : {
+
+    },
     "API Key" : {
 
     },
@@ -92,6 +95,9 @@
 
     },
     "Cancel" : {
+
+    },
+    "Clipboard" : {
 
     },
     "Coming Soon" : {
@@ -337,9 +343,6 @@
     "Microphone disconnected." : {
 
     },
-    "Missing API Key" : {
-
-    },
     "Model" : {
 
     },
@@ -410,9 +413,6 @@
       }
     },
     "None" : {
-
-    },
-    "Not Downloaded" : {
 
     },
     "Not installed" : {
@@ -653,6 +653,9 @@
           }
         }
       }
+    },
+    "Restore original clipboard after" : {
+
     },
     "Retry" : {
 

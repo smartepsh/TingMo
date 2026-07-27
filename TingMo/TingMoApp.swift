@@ -129,7 +129,7 @@ struct TingMoApp: App {
                 .foregroundStyle(.secondary)
 
             Menu(String(localized: "Recognition Engine")) {
-                ForEach(engineRegistry.engines, id: \.info.id) { engine in
+                ForEach(engineRegistry.engines.filter { $0.info.isReady }, id: \.info.id) { engine in
                     recognitionEngineMenuButton(engine: engine)
                 }
             }
@@ -287,25 +287,12 @@ struct TingMoApp: App {
     @ViewBuilder
     private func recognitionEngineMenuButton(engine: any SpeechEngine) -> some View {
         let isActive = presetStore.defaultPreset.speechEngineID == engine.info.id
-        let ready = engine.info.isReady
 
-        let title: String = {
-            var label = menuTitle(engine.info.name, isActive: isActive)
-            if !ready {
-                if engine.info.type == .remote {
-                    label += " — \(String(localized: "Missing API Key"))"
-                } else {
-                    label += " — \(String(localized: "Not Downloaded"))"
-                }
-            }
-            return label
-        }()
-
-        Button(title) {
+        Button(menuTitle(engine.info.name, isActive: isActive)) {
             presetStore.defaultPreset.speechEngineID = engine.info.id
             engineRegistry.setActiveEngine(engine.info.id)
         }
-        .disabled(isActive || !ready)
+        .disabled(isActive)
     }
 
     @ViewBuilder

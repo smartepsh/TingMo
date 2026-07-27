@@ -16,6 +16,11 @@ struct SettingsView: View {
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedPage: SettingsPage = .presets
+    /// Shared with `TextInjector` (UserDefaults key
+    /// "TextInjection.restoreDelay"). Binding via @AppStorage gives us a
+    /// single source of truth that is reactive in the UI and immediately
+    /// read by the injector on the next transcription.
+    @AppStorage("TextInjection.restoreDelay") private var clipboardRestoreDelay: Double = 5
 
     var body: some View {
         HStack(spacing: 0) {
@@ -119,6 +124,29 @@ struct SettingsView: View {
             }
 
             HotkeySettingsView(hotkeyManager: hotkeyManager)
+
+            Section {
+                LabeledContent(String(localized: "Restore original clipboard after")) {
+                    HStack {
+                        Text(String(format: "%d s", Int(clipboardRestoreDelay)))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                        Stepper(
+                            value: $clipboardRestoreDelay,
+                            in: 1...120,
+                            step: 1
+                        ) {
+                            EmptyView()
+                        }
+                    }
+                }
+            } header: {
+                Text("Clipboard")
+            } footer: {
+                Text("After TingMo pastes the transcription result, keep it on the clipboard for this many seconds before restoring your original clipboard content.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Section {
                 ForEach(PermissionType.allCases) { type in
