@@ -6,13 +6,24 @@
 //
 
 import Testing
+@testable import TingMo
 
 struct TingMoTests {
-
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-        // Swift Testing Documentation
-        // https://developer.apple.com/documentation/testing
+    @Test func excludesCoreAudioDefaultAggregateDevices() {
+        #expect(
+            !AudioDeviceEnumerator.isUserSelectableDevice(
+                uid: "CADefaultDeviceAggregate-71548-0",
+                name: "CADefaultDeviceAggregate-71548-0"
+            )
+        )
     }
 
+    @Test func includesUserCreatedAggregateDevices() {
+        #expect(
+            AudioDeviceEnumerator.isUserSelectableDevice(
+                uid: "com.example.studio-aggregate",
+                name: "Studio Aggregate"
+            )
+        )
+    }
 }

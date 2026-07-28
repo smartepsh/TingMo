@@ -47,8 +47,19 @@ enum AudioDeviceEnumerator {
             guard hasInputStreams(deviceID: deviceID) else { return nil }
             guard let uid = getDeviceUID(deviceID: deviceID) else { return nil }
             let name = getDeviceName(deviceID: deviceID) ?? "Unknown Device"
+            guard isUserSelectableDevice(uid: uid, name: name) else { return nil }
             return AudioDevice(uid: uid, name: name, isOnline: true)
         }
+    }
+
+    /// Core Audio creates short-lived aggregate devices to represent the
+    /// current default input/output pair. Their UIDs change between processes
+    /// and sessions, so they are implementation details rather than devices a
+    /// user can meaningfully select or prioritize.
+    static func isUserSelectableDevice(uid: String, name: String) -> Bool {
+        let coreAudioDefaultAggregatePrefix = "CADefaultDeviceAggregate-"
+        return !uid.hasPrefix(coreAudioDefaultAggregatePrefix)
+            && !name.hasPrefix(coreAudioDefaultAggregatePrefix)
     }
 
     static func deviceID(forUID uid: String) -> AudioDeviceID? {

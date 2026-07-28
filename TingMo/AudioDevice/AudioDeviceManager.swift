@@ -44,6 +44,12 @@ final class AudioDeviceManager {
     func refreshOnlineStatus() {
         let onlineDevices = AudioDeviceEnumerator.enumerateInputDevices()
 
+        // Migrate away Core Audio's transient default aggregate devices that
+        // older versions persisted as historical user-selectable devices.
+        devices.removeAll {
+            !AudioDeviceEnumerator.isUserSelectableDevice(uid: $0.uid, name: $0.name)
+        }
+
         // Mark existing devices online/offline and update names for online ones
         for i in devices.indices {
             if let onlineDevice = onlineDevices.first(where: { $0.uid == devices[i].uid }) {
