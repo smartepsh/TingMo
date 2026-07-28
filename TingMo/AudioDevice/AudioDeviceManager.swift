@@ -43,7 +43,6 @@ final class AudioDeviceManager {
     /// Refresh all device online/offline statuses and discover new devices.
     func refreshOnlineStatus() {
         let onlineDevices = AudioDeviceEnumerator.enumerateInputDevices()
-        let onlineUIDs = Set(onlineDevices.map(\.uid))
 
         // Mark existing devices online/offline and update names for online ones
         for i in devices.indices {

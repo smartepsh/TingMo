@@ -19,7 +19,7 @@ struct SherpaOnnxModelFile: Sendable, Hashable {
 /// The C recognizer config contains pointers allocated by the vendor helpers,
 /// so it is intentionally built immediately before recognizer construction.
 struct SherpaOnnxModelDescriptor: Identifiable, @unchecked Sendable {
-    typealias ConfigBuilder = @Sendable (URL) -> SherpaOnnxOfflineRecognizerConfig
+    typealias ConfigBuilder = @MainActor @Sendable (URL) -> SherpaOnnxOfflineRecognizerConfig
 
     let engineID: String
     let repoID: String
@@ -267,7 +267,7 @@ class SherpaOnnxEngine: DownloadableEngine, @unchecked Sendable {
         progress?(1.0)
     }
 
-    private final class ProgressBox: @unchecked Sendable {
+    nonisolated private final class ProgressBox: @unchecked Sendable {
         private let lock = NSLock()
         private var observation: NSKeyValueObservation?
         private var task: URLSessionDownloadTask?

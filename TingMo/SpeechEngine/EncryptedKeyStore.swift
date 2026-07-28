@@ -34,7 +34,7 @@ enum EncryptedKeyStore {
     static func keyHint(service: String) -> String? {
         let entries = readEntries()
         guard let entry = entries[service] else { return nil }
-        let suffix = entry.hint ?? ""
+        let suffix = entry.hint
         let prefix = entry.prefix ?? String(entry.plaintext.prefix(4))
         guard !prefix.isEmpty || !suffix.isEmpty else { return nil }
         return "\(prefix)...\(suffix)"
