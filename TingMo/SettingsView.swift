@@ -8,7 +8,6 @@ struct SettingsView: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var languagePreference: LanguagePreference
     @Bindable var downloadSource: DownloadSourcePreference
-    @Bindable var importedModelStore: ImportedModelStore
     @Bindable var presetStore: ConfigPresetStore
     @Bindable var llmInstanceStore: LLMInstanceStore
     @Bindable var sttInstanceStore: STTInstanceStore
@@ -73,7 +72,6 @@ struct SettingsView: View {
             LocalProviderSection(
                 engineRegistry: engineRegistry,
                 downloadSource: downloadSource,
-                importedModelStore: importedModelStore,
                 presetStore: presetStore
             )
 

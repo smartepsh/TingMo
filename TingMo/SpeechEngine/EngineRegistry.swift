@@ -92,9 +92,12 @@ final class EngineRegistry {
         // Remote engines from STTInstanceStore
         registerRemoteSTTEngines()
 
-        // SenseVoice — zh/yue/en/ja/ko, CPU via sherpa-onnx. Registered
-        // unconditionally; `isReady` reflects whether the model is installed.
-        register(SenseVoiceEngine())
+        // Offline CPU models handled by the shared sherpa-onnx runtime.
+        // Registered unconditionally; readiness reflects each descriptor's
+        // complete on-disk file set.
+        for descriptor in SherpaOnnxModelDescriptor.builtInModels {
+            register(SherpaOnnxEngine(descriptor: descriptor))
+        }
 
         // Parakeet — English-only, CoreML
         register(ParakeetEngine(isReady: false))

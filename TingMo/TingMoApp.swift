@@ -283,7 +283,6 @@ struct TingMoApp: App {
                 engineRegistry: engineRegistry,
                 languagePreference: languagePreference,
                 downloadSource: downloadSource,
-                importedModelStore: importedModelStore,
                 presetStore: presetStore,
                 llmInstanceStore: llmInstanceStore,
                 sttInstanceStore: sttInstanceStore,

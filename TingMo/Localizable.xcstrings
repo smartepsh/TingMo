@@ -81,56 +81,6 @@
     "Authentication failed — the API key is invalid." : {
 
     },
-    "Current version: %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前版本：%1$@"
-          }
-        }
-      }
-    },
-    "Later" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "稍后"
-          }
-        }
-      }
-    },
-    "OK" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "好"
-          }
-        }
-      }
-    },
-    "Unable to Check for Updates" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法检查更新"
-          }
-        }
-      }
-    },
-    "You are currently using TingMo %@." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前正在使用 TingMo %1$@。"
-          }
-        }
-      }
-    },
     "Automatically check for updates" : {
       "localizations" : {
         "zh-Hans" : {
@@ -216,6 +166,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前版本"
+          }
+        }
+      }
+    },
+    "Current version: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前版本：%1$@"
           }
         }
       }
@@ -489,6 +449,16 @@
     "Invalid model: required bundle '%@' is missing." : {
 
     },
+    "Later" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍后"
+          }
+        }
+      }
+    },
     "Local Provider" : {
 
     },
@@ -509,9 +479,6 @@
 
     },
     "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk." : {
-
-    },
-    "Models install to ~/Library/Application Support/TingMo/Models. Drop a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc to import." : {
 
     },
     "Needs Screen Recording" : {
@@ -602,6 +569,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "离线"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
           }
         }
       }
@@ -777,6 +754,16 @@
     "Recognition Engine" : {
 
     },
+    "Recommended" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐"
+          }
+        }
+      }
+    },
     "Recording" : {
       "localizations" : {
         "zh-Hans" : {
@@ -884,12 +871,6 @@
     "Select a correction engine to enable LLM correction. Set to None to disable. API keys, endpoints, and models are managed in Correction." : {
 
     },
-    "SenseVoice" : {
-
-    },
-    "SenseVoice Small" : {
-
-    },
     "Server error (%lld)%@" : {
       "localizations" : {
         "en" : {
@@ -930,12 +911,32 @@
         }
       }
     },
+    "Sherpa ONNX Models" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sherpa ONNX 模型"
+          }
+        }
+      }
+    },
     "Show at top center of screen" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示在屏幕顶部居中"
+          }
+        }
+      }
+    },
+    "Show Models in Finder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在访达中显示模型"
           }
         }
       }
@@ -1146,6 +1147,16 @@
     "Transcribing…" : {
 
     },
+    "Unable to Check for Updates" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法检查更新"
+          }
+        }
+      }
+    },
     "Unexpected response from the server." : {
 
     },
@@ -1188,6 +1199,16 @@
         }
       }
     },
+    "You are currently using TingMo %@." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前正在使用 TingMo %1$@。"
+          }
+        }
+      }
+    },
     "You're all set!" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1207,9 +1228,6 @@
           }
         }
       }
-    },
-    "中文 / 粤语 / English / 日本語 / 한국어" : {
-
     }
   },
   "version" : "1.0"

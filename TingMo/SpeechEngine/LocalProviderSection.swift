@@ -1,31 +1,27 @@
+import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
-/// Combined settings section for all local speech engines: WhisperKit model
-/// downloads and user-imported model folders.
+/// Combined settings section for all local speech engines: recommended
+/// sherpa-onnx models and the larger WhisperKit family.
 struct LocalProviderSection: View {
     @Bindable var engineRegistry: EngineRegistry
     @Bindable var downloadSource: DownloadSourcePreference
-    @Bindable var importedModelStore: ImportedModelStore
     @Bindable var presetStore: ConfigPresetStore
 
     @State private var endpointPresetID: String
     @State private var customEndpoint: String
-    @State private var lastImportError: String?
-    @State private var isDropTargeted = false
     @State private var pendingDeleteEngineID: String?
     @State private var pendingCancelEngineID: String?
-    @State private var pendingRemoveModelID: String?
+    @State private var isSherpaGroupExpanded = true
+    @State private var isWhisperGroupExpanded = false
 
     init(
         engineRegistry: EngineRegistry,
         downloadSource: DownloadSourcePreference,
-        importedModelStore: ImportedModelStore,
         presetStore: ConfigPresetStore
     ) {
         self.engineRegistry = engineRegistry
         self.downloadSource = downloadSource
-        self.importedModelStore = importedModelStore
         self.presetStore = presetStore
         _endpointPresetID = State(initialValue: downloadSource.matchingPresetID)
         _customEndpoint = State(initialValue: downloadSource.endpoint)
@@ -63,22 +59,26 @@ struct LocalProviderSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            // WhisperKit built-in models
-            Text("Whisper Models")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ForEach(WhisperKitEngine.availableModels) { model in
-                whisperKitModelRow(model: model)
+            DisclosureGroup(isExpanded: $isSherpaGroupExpanded) {
+                ForEach(SherpaOnnxModelDescriptor.builtInModels) { descriptor in
+                    sherpaOnnxModelRow(descriptor: descriptor)
+                        .padding(.leading, 24)
+                }
+            } label: {
+                modelGroupLabel(
+                    title: String(localized: "Sherpa ONNX Models"),
+                    badge: String(localized: "Recommended")
+                )
             }
 
-            // SenseVoice — the sherpa-onnx runtime is linked in, only the model
-            // is fetched on demand.
-            Text("SenseVoice")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            senseVoiceModelRow()
+            DisclosureGroup(isExpanded: $isWhisperGroupExpanded) {
+                ForEach(WhisperKitEngine.availableModels) { model in
+                    whisperKitModelRow(model: model)
+                        .padding(.leading, 24)
+                }
+            } label: {
+                modelGroupLabel(title: String(localized: "Whisper Models"))
+            }
 
             HStack {
                 Text(String(localized: "Total disk usage"))
@@ -86,68 +86,41 @@ struct LocalProviderSection: View {
                 Text(totalDiskUsageFormatted)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-            }
-
-            // Imported models
-            Text("Imported Models")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ForEach(importedModelStore.models) { model in
-                let isPending = pendingRemoveModelID == model.id
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.displayName).fontWeight(.medium)
-                        Text(model.folderURL.path)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer()
-                    Button {
-                        if isPending {
-                            removeImportedModel(model)
-                            pendingRemoveModelID = nil
-                        } else {
-                            pendingRemoveModelID = model.id
-                        }
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(isPending ? .red : .secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .onHover { inside in
-                        if !inside && isPending {
-                            pendingRemoveModelID = nil
-                        }
-                    }
+                Button(action: openModelsDirectory) {
+                    Image(systemName: "folder")
                 }
-            }
-
-            dropZone
-                .frame(height: 70)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(
-                            isDropTargeted ? Color.accentColor : Color.secondary.opacity(0.4),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [4])
-                        )
-                )
-                .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
-
-            if let lastImportError {
-                Label(lastImportError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                .buttonStyle(.borderless)
+                .help(String(localized: "Show Models in Finder"))
+                .accessibilityLabel(String(localized: "Show Models in Finder"))
             }
         } header: {
             Text("Local Provider")
         } footer: {
-            Text(String(localized: "Models install to ~/Library/Application Support/TingMo/Models. Drop a folder containing AudioEncoder.mlmodelc, MelSpectrogram.mlmodelc and TextDecoder.mlmodelc to import."))
+            Text(String(localized: "Models install to ~/Library/Application Support/TingMo/Models. Changing the download source does not affect models already on disk."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private func modelGroupLabel(title: String, badge: String? = nil) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.callout.weight(.semibold))
+            if let badge {
+                recommendationBadge(badge)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func recommendationBadge(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
     }
 
     // MARK: - WhisperKit Model Row
@@ -204,19 +177,24 @@ struct LocalProviderSection: View {
     }
 
     @ViewBuilder
-    private func senseVoiceModelRow() -> some View {
-        let engineID = SenseVoiceEngine.engineID
+    private func sherpaOnnxModelRow(descriptor: SherpaOnnxModelDescriptor) -> some View {
+        let engineID = descriptor.engineID
         let progress = engineRegistry.progress(for: engineID)
         let error = engineRegistry.downloadError(for: engineID)
-        let downloaded = SenseVoiceEngine.isModelInstalled
+        let downloaded = descriptor.isModelInstalled
 
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("SenseVoice Small").fontWeight(.medium)
-                    Text(senseVoiceSubtitle(downloaded: downloaded, progress: progress, error: error))
-                        .font(.caption)
-                        .foregroundStyle(error == nil ? .secondary : Color.red)
+                    Text(descriptor.modelDisplayName).fontWeight(.medium)
+                    Text(sherpaOnnxSubtitle(
+                        descriptor: descriptor,
+                        downloaded: downloaded,
+                        progress: progress,
+                        error: error
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(error == nil ? .secondary : Color.red)
                 }
                 Spacer()
                 whisperKitControls(
@@ -233,16 +211,24 @@ struct LocalProviderSection: View {
         .padding(.vertical, 2)
     }
 
-    private func senseVoiceSubtitle(downloaded: Bool, progress: Double?, error: String?) -> String {
+    private func sherpaOnnxSubtitle(
+        descriptor: SherpaOnnxModelDescriptor,
+        downloaded: Bool,
+        progress: Double?,
+        error: String?
+    ) -> String {
         if let error { return "\(String(localized: "Failed")): \(error)" }
         if let progress {
             return "\(String(localized: "Downloading")) \(Int(progress * 100))%"
         }
         if downloaded {
-            let bytes = SenseVoiceEngine().diskUsage
-            return "226 MB · \(String(localized: "Downloaded")) (\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)))"
+            let installedSize = ByteCountFormatter.string(
+                fromByteCount: descriptor.diskUsage,
+                countStyle: .file
+            )
+            return "\(descriptor.modelSize) · \(String(localized: "Downloaded")) (\(installedSize))"
         }
-        return "226 MB · \(String(localized: "中文 / 粤语 / English / 日本語 / 한국어"))"
+        return "\(descriptor.modelSize) · \(descriptor.languageDisplayName)"
     }
 
     @ViewBuilder
@@ -315,66 +301,28 @@ struct LocalProviderSection: View {
         }
     }
 
-    // MARK: - Imported Model Helpers
-
-    @ViewBuilder
-    private var dropZone: some View {
-        VStack(spacing: 4) {
-            Image(systemName: "square.and.arrow.down")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Text(String(localized: "Drop a WhisperKit model folder here"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isDropTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
-        .contentShape(Rectangle())
-    }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-            guard
-                let data = item as? Data,
-                let url = URL(dataRepresentation: data, relativeTo: nil)
-            else { return }
-            Task { @MainActor in
-                importFolder(url)
-            }
-        }
-        return true
-    }
-
-    private func importFolder(_ url: URL) {
-        lastImportError = nil
-        do {
-            _ = try importedModelStore.importFolder(url)
-            engineRegistry.refreshImportedEngines()
-        } catch {
-            lastImportError = error.localizedDescription
-        }
-    }
-
-    private func removeImportedModel(_ model: ImportedModelStore.ImportedModel) {
-        if presetStore.defaultPreset.speechEngineID == model.engineID {
-            presetStore.replaceSpeechEngineSelection(
-                deletedID: model.engineID,
-                fallbackID: WhisperKitEngine.defaultModelEngineID
-            )
-            engineRegistry.prepareEngine(WhisperKitEngine.defaultModelEngineID)
-        }
-        importedModelStore.remove(model)
-        engineRegistry.refreshImportedEngines()
-    }
-
     // MARK: - Aggregate
+
+    private func openModelsDirectory() {
+        let directory = WhisperKitEngine.modelsDirectory
+        try? FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        NSWorkspace.shared.open(directory)
+    }
 
     private var totalDiskUsageFormatted: String {
         _ = engineRegistry.diskUsageVersion
-        let total = WhisperKitEngine.availableModels.reduce(Int64(0)) {
+        let whisperTotal = WhisperKitEngine.availableModels.reduce(Int64(0)) {
             $0 + WhisperKitEngine.diskUsage(for: $1)
         }
-        return ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
+        let sherpaTotal = SherpaOnnxModelDescriptor.builtInModels.reduce(Int64(0)) {
+            $0 + $1.diskUsage
+        }
+        return ByteCountFormatter.string(
+            fromByteCount: whisperTotal + sherpaTotal,
+            countStyle: .file
+        )
     }
 }
