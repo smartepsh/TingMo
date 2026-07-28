@@ -24,10 +24,10 @@ struct PresetSettingsSection: View {
                     }
                 }
 
-                // Local WhisperKit Models (downloaded only)
-                if !readyWhisperKitEngines.isEmpty {
+                // Local models (downloaded only)
+                if !readyLocalEngines.isEmpty {
                     Divider()
-                    ForEach(readyWhisperKitEngines, id: \.info.id) { engine in
+                    ForEach(readyLocalEngines, id: \.info.id) { engine in
                         Text("\(engine.info.name) — \(engine.info.modelSize ?? "")")
                             .tag(engine.info.id as String)
                     }
@@ -92,12 +92,10 @@ struct PresetSettingsSection: View {
         }
     }
 
-    private var whisperKitEngines: [any SpeechEngine] {
-        engineRegistry.engines.filter { $0 is WhisperKitEngine }
-    }
-
-    private var readyWhisperKitEngines: [any SpeechEngine] {
-        whisperKitEngines.filter { $0.info.isReady }
+    private var readyLocalEngines: [any SpeechEngine] {
+        engineRegistry.engines.filter {
+            $0.info.type == .local && $0.info.isReady
+        }
     }
 
     private var readySTTInstances: [STTInstance] {
