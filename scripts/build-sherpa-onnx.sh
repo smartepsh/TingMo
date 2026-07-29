@@ -18,6 +18,20 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPS="$REPO_ROOT/.deps"
+SRC="$DEPS/sherpa-onnx"
+
+# Pinned rather than tracking upstream's default branch. Two things here are
+# downstream of the checkout — the static library the app links against, and the
+# vendored SherpaOnnx.swift copied out at the end — so an unpinned clone makes
+# both a moving target: the release workflow's "vendored sources unchanged"
+# check starts failing on upstream commits nobody here reviewed. Upstream showed
+# the sharp edge of that on 2026-07-29, when 9ad8c88 deleted
+# swift-api-examples/SherpaOnnx.swift outright and the copy below simply had no
+# source file left.
+#
+# To bump: change this revision, re-run the script, commit the refreshed
+# TingMo/SpeechEngine/Vendor/SherpaOnnx.swift alongside it.
+SHERPA_ONNX_REV="0a03d8546f8136073c210ec895109a0c64f90daa"
 
 mkdir -p "$DEPS"
 
@@ -27,8 +41,7 @@ mkdir -p "$DEPS"
 # unused subsystems switched off, kept here rather than patched into .deps/ so
 # a re-clone cannot silently revert it.
 build_xcframework() {
-  local src="$DEPS/sherpa-onnx"
-  local build="$src/build-swift-macos"
+  local build="$SRC/build-swift-macos"
 
   mkdir -p "$build"
   (
@@ -85,11 +98,23 @@ build_xcframework() {
   )
 }
 
-if [ ! -d "$DEPS/sherpa-onnx/build-swift-macos/sherpa-onnx.xcframework" ]; then
-  if [ ! -d "$DEPS/sherpa-onnx" ]; then
-    echo "==> Cloning sherpa-onnx"
-    git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git "$DEPS/sherpa-onnx"
-  fi
+# A plain `git clone --depth 1` cannot name a revision, and CI restores .deps
+# from a cache that may hold a checkout of some earlier pin, so fetch the exact
+# commit into whatever is already there. GitHub serves fetch-by-SHA, which keeps
+# this a single-commit download rather than a full history.
+if [ "$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)" != "$SHERPA_ONNX_REV" ]; then
+  echo "==> Fetching sherpa-onnx $SHERPA_ONNX_REV"
+  mkdir -p "$SRC"
+  git -C "$SRC" init -q
+  git -C "$SRC" remote add origin https://github.com/k2-fsa/sherpa-onnx.git 2>/dev/null || true
+  git -C "$SRC" fetch -q --depth 1 origin "$SHERPA_ONNX_REV"
+  git -C "$SRC" checkout -q --force FETCH_HEAD
+  # The C++ sources just moved under it, so anything built from the previous
+  # revision is stale — including an xcframework restored from the CI cache.
+  rm -rf "$SRC/build-swift-macos"
+fi
+
+if [ ! -d "$SRC/build-swift-macos/sherpa-onnx.xcframework" ]; then
   echo "==> Building xcframework (this takes a while)"
   build_xcframework
 else
@@ -97,8 +122,8 @@ else
 fi
 
 # The Swift wrapper is a plain source file rather than part of the framework, so
-# refresh our vendored copy whenever the upstream checkout changes.
-cp "$DEPS/sherpa-onnx/swift-api-examples/SherpaOnnx.swift" \
+# refresh our vendored copy whenever the pinned revision changes.
+cp "$SRC/swift-api-examples/SherpaOnnx.swift" \
    "$REPO_ROOT/TingMo/SpeechEngine/Vendor/SherpaOnnx.swift"
 
 echo

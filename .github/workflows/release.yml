@@ -60,8 +60,9 @@ jobs:
 
       # The sherpa-onnx static library takes ~10 minutes to compile and is not
       # committed. Key on the build script so a change to build flags busts the
-      # cache; sherpa-onnx itself is cloned at --depth 1 from main by the script,
-      # so the key intentionally does not track its upstream revision.
+      # cache — and since the script also pins the sherpa-onnx revision, bumping
+      # that pin busts the cache too, which is what keeps a cached .deps from
+      # outliving the revision it was built from.
       # Keyed on the runner image too, not just runner.os ("macOS" for every
       # image): these are C++ artifacts, so a toolchain change must rebuild
       # rather than silently relink a stale library.
