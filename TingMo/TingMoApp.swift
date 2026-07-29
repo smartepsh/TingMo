@@ -21,6 +21,7 @@ struct TingMoApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var didCheckOnboarding = false
     @State private var hotkeyCancellable: AnyCancellable?
+    @State private var terminationCancellable: AnyCancellable?
 
     private static let menuBarIcon: NSImage = {
         let image = NSImage(named: "MenuBarIcon") ?? NSImage()
@@ -234,6 +235,7 @@ struct TingMoApp: App {
                     }
                     hotkeyManager.start()
                     subscribeToHotkeyEvents()
+                    observeTermination()
                     Task { await updateManager.checkAutomaticallyIfNeeded() }
                 }
                 .onChange(of: audioDeviceManager.deviceDisconnectedDuringRecording) { _, disconnected in
@@ -405,6 +407,20 @@ struct TingMoApp: App {
         case .transcribing:
             break
         }
+    }
+
+    /// The clipboard restore after a paste runs on a timer, so quitting within
+    /// the restore delay would otherwise leave the transcription on the
+    /// user's clipboard for good.
+    private func observeTermination() {
+        guard terminationCancellable == nil else { return }
+        terminationCancellable = NotificationCenter.default
+            .publisher(for: NSApplication.willTerminateNotification)
+            .sink { _ in
+                MainActor.assumeIsolated {
+                    TextInjector.shared.flushPendingRestore()
+                }
+            }
     }
 
     private func subscribeToHotkeyEvents() {

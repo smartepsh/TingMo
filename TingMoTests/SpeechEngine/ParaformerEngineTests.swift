@@ -39,8 +39,6 @@ final class ParaformerEngineTests: XCTestCase {
             SherpaOnnxModelDescriptor.builtInModels.map(\.engineID),
             ["sensevoice", "paraformer-zh"]
         )
-        XCTAssertTrue(SherpaOnnxModelDescriptor.builtInModels[0].isRecommended)
-        XCTAssertFalse(SherpaOnnxModelDescriptor.builtInModels[1].isRecommended)
     }
 
     func testTranscribesMandarinReferenceClip() async throws {

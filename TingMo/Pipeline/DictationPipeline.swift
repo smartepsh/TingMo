@@ -355,7 +355,7 @@ final class DictationPipeline {
 
             let finalText = await translateIfNeeded(normalized)
             let correctionResult = await correctIfNeeded(finalText)
-            try await TextInjector.shared.inject(correctionResult.text)
+            try TextInjector.shared.inject(correctionResult.text)
             await finish(error: correctionResult.warning)
         } catch {
             NSLog("[TingMo] transcription error: \(error)")

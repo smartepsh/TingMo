@@ -13,11 +13,27 @@ import Carbon.HIToolbox
 /// elsewhere. The defaults are configurable from the Settings → System
 /// → Clipboard section. 5 seconds is a sensible default; users who
 /// don't want the result to linger can set a shorter value.
+///
+/// `inject(_:)` returns as soon as the paste is posted — the restore is
+/// scheduled on a detached task. Awaiting the delay used to hold the
+/// dictation pipeline in `.transcribing` for the whole window, so the
+/// status indicator stayed up and the hotkey was ignored for seconds
+/// after the text had already appeared.
+@MainActor
 final class TextInjector {
     static let shared = TextInjector()
 
     private static let restoreDelayKey = "TextInjection.restoreDelay"
     private static let defaultRestoreDelay: TimeInterval = 5
+
+    /// The pasteboard state a scheduled restore still owes the user.
+    private struct PendingRestore {
+        let snapshot: PasteboardSnapshot
+        let injectedText: String
+    }
+
+    private var pendingRestore: PendingRestore?
+    private var restoreTask: Task<Void, Never>?
 
     private init() {}
 
@@ -31,12 +47,16 @@ final class TextInjector {
         UserDefaults.standard.set(seconds, forKey: Self.restoreDelayKey)
     }
 
-    /// Paste `text` at the current cursor, then restore the prior pasteboard.
+    /// Paste `text` at the current cursor and schedule the prior pasteboard
+    /// to be restored after `restoreDelay`.
+    ///
+    /// Returns once the paste has been posted; the restore happens later
+    /// without blocking the caller.
     ///
     /// - Throws: `TextInjectionError.emptyText` when `text` is empty or
     ///           whitespace-only; the pipeline should surface an error
     ///           via the status UI instead of pasting nothing.
-    func inject(_ text: String) async throws {
+    func inject(_ text: String) throws {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw TextInjectionError.emptyText
         }
@@ -51,6 +71,11 @@ final class TextInjector {
             throw TextInjectionError.accessibilityNotGranted
         }
 
+        // A restore still owed from the previous dictation is settled first,
+        // so the snapshot we take below is the user's own clipboard rather
+        // than the previous transcription.
+        flushPendingRestore()
+
         let pasteboard = NSPasteboard.general
         let snapshot = PasteboardSnapshot(from: pasteboard)
 
@@ -62,14 +87,30 @@ final class TextInjector {
 
         try synthesizeCmdV()
 
-        try? await Task.sleep(for: .seconds(restoreDelay))
+        pendingRestore = PendingRestore(snapshot: snapshot, injectedText: text)
+        let delay = restoreDelay
+        restoreTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self?.flushPendingRestore()
+        }
+    }
+
+    /// Run the scheduled restore now and clear it. Idempotent, so it is safe
+    /// to call from the timer, from the next injection, and at app exit.
+    func flushPendingRestore() {
+        restoreTask?.cancel()
+        restoreTask = nil
+        guard let pending = pendingRestore else { return }
+        pendingRestore = nil
 
         // Only restore if the pasteboard still holds the text we wrote.
         // If the user (or another transcription) overwrote the clipboard
         // during the delay, we leave it alone rather than clobbering the
         // newer content with a stale snapshot.
-        if pasteboard.string(forType: .string) == text {
-            snapshot.restore(to: pasteboard)
+        let pasteboard = NSPasteboard.general
+        if pasteboard.string(forType: .string) == pending.injectedText {
+            pending.snapshot.restore(to: pasteboard)
         }
     }
 
